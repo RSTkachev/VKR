@@ -1,9 +1,12 @@
-import sys
-from PySide6.QtWidgets import QMainWindow, QApplication, QLabel, QListWidgetItem, QWidget, QGridLayout
+import time
+
+import PySide6
+from PySide6.QtWidgets import QMainWindow, QLabel, QListWidgetItem, QWidget, QGridLayout, QDialog, QMessageBox
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon, QPixmap, QFont
 
-from resources.main_window_ui import Ui_MainWindow
+from gui.main_window_ui import Ui_MainWindow
+from gui.detection_window import DetectionWidget
 
 
 class MainWindow(QMainWindow):
@@ -23,9 +26,8 @@ class MainWindow(QMainWindow):
         self.title_label.setText("WLD")
 
         self.title_icon = self.ui.title_icon
-        self.title_icon.setText("")
         self.title_icon.setPixmap(QPixmap("./resources/icons/deer.svg"))
-        self.setIconSize(QSize(30, 30))
+        self.setIconSize(QSize(24, 24))
         self.title_icon.setScaledContents(True)
 
         self.side_menu = self.ui.listWidget
@@ -35,9 +37,10 @@ class MainWindow(QMainWindow):
         self.side_menu_collapsed.hide()
 
         self.menu_btn = self.ui.menu_btn
-        self.menu_btn.setText("")
         self.menu_btn.setIcon(QIcon("./resources/icons/menu.svg"))
-        self.menu_btn.setIconSize(QSize(30, 30))
+        self.menu_btn.setText('')
+
+        self.menu_btn.setIconSize(QSize(24, 24))
         self.menu_btn.setCheckable(True)
         self.menu_btn.setChecked(False)
 
@@ -46,19 +49,23 @@ class MainWindow(QMainWindow):
         self.menu_list = [
             {
                 'name': 'Главная страница',
-                'icon': './resources/icons/camera.svg'
+                'icon': './resources/icons/camera.svg',
+                'widget': DetectionWidget()
             },
             {
                 'name': 'Статистика',
-                'icon': './resources/icons/clock.svg'
+                'icon': './resources/icons/clock.svg',
+                'widget': QWidget()
             },
             {
                 'name': 'Настройки',
-                'icon': './resources/icons/settings.svg'
+                'icon': './resources/icons/settings.svg',
+                'widget': QWidget()
             },
             {
                 'name': 'Информация',
-                'icon': './resources/icons/info.svg'
+                'icon': './resources/icons/info.svg',
+                'widget': QWidget()
             }
         ]
 
@@ -73,9 +80,11 @@ class MainWindow(QMainWindow):
         self.menu_btn.toggled['bool'].connect(self.title_icon.setHidden)
 
         self.side_menu.currentRowChanged['int'].connect(self.main_content.setCurrentIndex)
+        self.side_menu.setIconSize(QSize(24, 24))
         self.side_menu_collapsed.currentRowChanged['int'].connect(self.main_content.setCurrentIndex)
         self.side_menu.currentRowChanged['int'].connect(self.side_menu_collapsed.setCurrentRow)
         self.side_menu_collapsed.currentRowChanged['int'].connect(self.side_menu.setCurrentRow)
+        self.side_menu_collapsed.setIconSize(QSize(24, 24))
 
     def init_list_widget(self):
         self.side_menu_collapsed.clear()
@@ -85,13 +94,15 @@ class MainWindow(QMainWindow):
             item = QListWidgetItem()
             item.setIcon(QIcon(menu.get("icon")))
             item.setSizeHint(QSize(40, 40))
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.side_menu_collapsed.addItem(item)
             self.side_menu_collapsed.setCurrentRow(0)
 
             item_new = QListWidgetItem()
             item_new.setIcon(QIcon(menu.get("icon")))
-            item.setSizeHint(QSize(40, 40))
+            item_new.setSizeHint(QSize(40, 40))
             item_new.setText(menu.get("name"))
+            item_new.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.side_menu.addItem(item_new)
             self.side_menu.setCurrentRow(0)
 
@@ -102,13 +113,22 @@ class MainWindow(QMainWindow):
 
         for menu in self.menu_list:
             text = menu.get("name")
-            layout = QGridLayout()
-            label = QLabel(text)
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            font = QFont()
-            font.setPixelSize(20)
-            label.setFont(font)
-            layout.addWidget(label)
-            new_page = QWidget()
-            new_page.setLayout(layout)
+            new_page = menu.get('widget')
             self.main_content.addWidget(new_page)
+
+    def closeEvent(self, event: PySide6.QtGui.QCloseEvent) -> None:
+        if self.menu_list[0]['widget'].btn_upload.isEnabled():
+            self.menu_list[0]['widget'].worker_thread.exit(0)
+            event.accept()
+        else:
+            button = QMessageBox.question(self, "Закрытие приложения", "Вы действительно хотите прервать обработку?")
+
+            if button == QMessageBox.StandardButton.Yes:
+                # TODO Сделать корректное завершение программы во время работы детектора
+                self.menu_list[0]['widget'].worker.is_working = False
+                self.menu_list[0]['widget'].worker_thread.quit()
+                self.menu_list[0]['widget'].worker_thread.wait()
+                event.accept()
+            else:
+                event.ignore()
+
