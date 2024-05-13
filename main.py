@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QApplication
 from gui.main_window import MainWindow
 
 if __name__ == '__main__':
-    app = QApplication(sys.argv)
+    app = QApplication([])
 
     with open("resources/style.qss") as f:
         style_str = f.read()
@@ -11,6 +11,6 @@ if __name__ == '__main__':
     app.setStyleSheet(style_str)
 
     window = MainWindow()
-    window.show()
+    window.showMaximized()
 
     sys.exit(app.exec())

@@ -1,12 +1,10 @@
-import time
-
-import PySide6
-from PySide6.QtWidgets import QMainWindow, QLabel, QListWidgetItem, QWidget, QGridLayout, QDialog, QMessageBox
+from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QWidget, QMessageBox
 from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QIcon, QPixmap, QFont
+from PySide6.QtGui import QIcon, QPixmap, QCloseEvent
 
 from gui.main_window_ui import Ui_MainWindow
 from gui.detection_window import DetectionWidget
+from gui.info_window import InfoWidget
 
 
 class MainWindow(QMainWindow):
@@ -24,17 +22,19 @@ class MainWindow(QMainWindow):
         # Initialize UI elements
         self.title_label = self.ui.title_label
         self.title_label.setText("WLD")
+        self.title_label.hide()
 
         self.title_icon = self.ui.title_icon
         self.title_icon.setPixmap(QPixmap("./resources/icons/deer.svg"))
         self.setIconSize(QSize(24, 24))
         self.title_icon.setScaledContents(True)
+        self.title_icon.hide()
 
         self.side_menu = self.ui.listWidget
         self.side_menu.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.side_menu.hide()
         self.side_menu_collapsed = self.ui.listWidget_collapsed
         self.side_menu_collapsed.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.side_menu_collapsed.hide()
 
         self.menu_btn = self.ui.menu_btn
         self.menu_btn.setIcon(QIcon("./resources/icons/menu.svg"))
@@ -42,7 +42,7 @@ class MainWindow(QMainWindow):
 
         self.menu_btn.setIconSize(QSize(24, 24))
         self.menu_btn.setCheckable(True)
-        self.menu_btn.setChecked(False)
+        self.menu_btn.setChecked(True)
 
         self.main_content = self.ui.stackedWidget
 
@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
             {
                 'name': 'Информация',
                 'icon': './resources/icons/info.svg',
-                'widget': QWidget()
+                'widget': InfoWidget()
             }
         ]
 
@@ -116,7 +116,7 @@ class MainWindow(QMainWindow):
             new_page = menu.get('widget')
             self.main_content.addWidget(new_page)
 
-    def closeEvent(self, event: PySide6.QtGui.QCloseEvent) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         if self.menu_list[0]['widget'].btn_upload.isEnabled():
             self.menu_list[0]['widget'].worker_thread.exit(0)
             event.accept()

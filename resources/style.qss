@@ -8,11 +8,13 @@
 #title_icon {
     max-width: 24px;
     max-height: 24px;
+    padding-left: 4px;
 }
 
 /* Define styles for the 'menu_btn' widget */
 #menu_btn {
     border: none;
+    padding-right: 4px;
 }
 
 /* Define styles for the 'QStackedWidget' */
@@ -26,45 +28,62 @@ QListWidget,
     background-color: #ffedab;
 }
 
-/* Define border styles for '#stackedWidget' and '#title_frame' */
-#stackedWidget,
-#title_frame {
-    border: 1px solid #828790;
-}
-
 /* Additional border style for '#stackedWidget' */
 #stackedWidget {
-    border-left: none;
+    border: none;
 }
 
 /* Additional border style for '#title_frame' */
 #title_frame {
-    border-bottom: none;
+    border: none;
 }
 
 /* Define font styles for '#listWidget' */
-#listWidget {
-    font-size: 12px;
-    font-family: Segoe UI Semibold;
+#listWidget,
+#listWidget_collapsed {
+    font-size: 14px;
+    font-family: Segoe UI;
+    border: none;
 }
 
 /* Border radius for '#listWidget' and '#listWidget_collapsed' items */
 #listWidget::item,
 #listWidget_collapsed::item {
-    border-top-right-radius: 15px;
-    border-bottom-right-radius: 15px;
+    border-top-left-radius: 15px;
+    border-bottom-left-radius: 15px;
+    padding-left: 12px;
+    border: none;
 }
-
 
 
 /* Hover effect for list items */
 #listWidget::item:hover,
 #listWidget_collapsed::item:hover {
-    background-color: #ffedab;
+    widget-animation-duration: 2000;
 }
 
 /* Selected item styles for list items */
 #listWidget::item:selected,
 #listWidget_collapsed::item:selected {
-    background-color: #ffdd65;
+    background-color:rgb(255, 249, 227);
+}
+
+#btn_upload {
+    background-color: #FFDB5B;
+    border-radius: 10px;
+    height: 24px;
+    border: 1px, solid #828790;
+}
+
+#progress_bar {
+    background-color:rgb(225, 225, 225);
+    border-radius: 10px;
+    text-align: center;
+    color: black;
+    height:24px;
+}
+
+#progress_bar::chunk {
+    border-radius: 10px;
+    background-color:rgb(90, 168, 114);
 }
