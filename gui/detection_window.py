@@ -1,20 +1,17 @@
 # Импорт библиотек
-import os
-import filetype
-import cv2
-
-import ultralytics
 from PySide6.QtWidgets import QWidget, QFileDialog, QPushButton, QGridLayout, QProgressBar,\
     QLabel, QComboBox, QLineEdit, QDoubleSpinBox, QCheckBox, QMessageBox
 from PySide6.QtGui import QIcon, Qt
 from PySide6.QtCore import QThread, Signal, Slot
+
+from detection_worker import DetectionWorker
 
 
 # Класс окна интерфейса
 class DetectionWidget(QWidget):
     # Сигналы потоку-обработчику
     load_model_signal = Signal()
-    prediction_signal = Signal(str, str, float, bool, bool, bool)
+    prediction_signal = Signal(str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
 
     def __init__(self):
         super().__init__()
@@ -163,11 +160,11 @@ class DetectionWidget(QWidget):
             dialog = QMessageBox(self)
             dialog.information(self, 'Обработка невозможна!', 'Пожалуйста, введите источник', QMessageBox.StandardButton.Ok)
             return
-        if not destination and save_image:
+        if not destination and save_image == Qt.CheckState.Checked:
             dialog = QMessageBox(self)
-            dialog.information(self, 'Обработка невозможна!', 'Пожалуйста, введите источник', QMessageBox.StandardButton.Ok)
+            dialog.information(self, 'Обработка невозможна!', 'Пожалуйста, введите путь сохранения', QMessageBox.StandardButton.Ok)
             return
-        self.prediction_signal(source, destination, confidence, save_image, save_statistic, group_images)
+        self.prediction_signal.emit(source, destination, confidence, save_image, save_statistic, group_images)
 
 
     # Блокировка кнопки обработки
@@ -180,47 +177,3 @@ class DetectionWidget(QWidget):
     @Slot(int)
     def upload_progress_bar_value(self, progress):
         self.progress_bar.setValue(progress)
-
-
-# Класс-обработчик
-class DetectionWorker(QThread):
-    # Сигналы для изменения интерфейса
-    set_enable_state = Signal()
-    set_progress_bar_value = Signal(int)
-    # Переменная для досрочного завершения обработки
-    is_working = True
-
-    # Загрузка модели
-    @Slot()
-    def load_model(self):
-        self.model = ultralytics.YOLO('./resources/model_ru.pt', verbose=False)
-
-    # Обарботка
-    @Slot(str, str, float, bool, bool, bool)
-    def make_prediction(self, source, destination, confidence, to_save_image, to_save_statistic, to_group_images):
-        self.set_progress_bar_value.emit(0)
-        self.set_enable_state.emit()
-        files = []
-        for folder, _, filenames in os.walk(source):
-            for filename in filenames:
-                if filetype.is_image(f'{folder}\{filename}') or filetype.is_video(f'{folder}\{filename}'):
-                    files.append(f'{folder}\{filename}')
-        count = len(files)
-        for index in range(0, count):
-            prediction = self.model.predict(files[index], verbose=False, stream=True)
-            if filetype.is_video(files[index]):
-                vid = cv2.VideoCapture(files[index])
-                height = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
-                width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
-                fps = vid.get(cv2.CAP_PROP_FPS)
-
-                fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-                video = cv2.VideoWriter(filename="output.avi", fourcc=fourcc, fps=fps, frameSize=(int(width), int(height)))
-                for image in prediction:
-                    video.write(image.plot())
-                video.release()
-            else:
-                pass
-            progress = int((index + 1) / count * 100)
-            self.set_progress_bar_value.emit(progress)
-        self.set_enable_state.emit()
