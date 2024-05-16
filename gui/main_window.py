@@ -4,6 +4,7 @@ from PySide6.QtGui import QIcon, QPixmap, QCloseEvent
 
 from gui.main_window_ui import Ui_MainWindow
 from gui.detection_window import DetectionWidget
+from gui.statistic_window import StatisticWidget
 from gui.info_window import InfoWidget
 
 
@@ -18,6 +19,7 @@ class MainWindow(QMainWindow):
         # Set window properties
         self.setWindowIcon(QIcon("./resources/icons/deer.svg"))
         self.setWindowTitle("Wild Life Detection")
+        self.setMinimumSize(QSize(1280, 800))
 
         # Initialize UI elements
         self.title_label = self.ui.title_label
@@ -55,12 +57,7 @@ class MainWindow(QMainWindow):
             {
                 'name': 'Статистика',
                 'icon': './resources/icons/clock.svg',
-                'widget': QWidget()
-            },
-            {
-                'name': 'Настройки',
-                'icon': './resources/icons/settings.svg',
-                'widget': QWidget()
+                'widget': StatisticWidget()
             },
             {
                 'name': 'Информация',

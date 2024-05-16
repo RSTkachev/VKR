@@ -11,6 +11,6 @@ if __name__ == '__main__':
     app.setStyleSheet(style_str)
 
     window = MainWindow()
-    window.showMaximized()
+    window.show()
 
     sys.exit(app.exec())

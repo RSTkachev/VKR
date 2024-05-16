@@ -1,7 +1,7 @@
 /* Define styles for the 'title_label' widget */
 #title_label {
     font-size: 16px;
-    font-family: Amazone BT;
+    font-family: Segoe UI Semibold;
 }
 
 /* Define styles for the 'title_icon' widget */
@@ -72,7 +72,8 @@ QListWidget,
     background-color: #FFDB5B;
     border-radius: 10px;
     height: 24px;
-    border: 1px, solid #828790;
+    font-size: 13px;
+    font-family: Open Sans;
 }
 
 #progress_bar {
@@ -81,9 +82,65 @@ QListWidget,
     text-align: center;
     color: black;
     height:24px;
+    font-size: 13px;
+    font-family: Open Sans;
+    font-weight: True;
 }
 
 #progress_bar::chunk {
     border-radius: 10px;
     background-color:rgb(90, 168, 114);
+}
+
+#global_settings,
+#saving_settings {
+    font-size: 16px;
+    font-family: Segoe UI Semibold;
+}
+
+#loading_button,
+#saving_button {
+    background-color: #FFDB5B;
+    border-radius: 10px;
+    height: 24px;
+    width: 24px;
+}
+
+#device_text,
+#loading_text,
+#saving_text,
+#confidence_threshold,
+#save_image_text,
+#save_statistic_text,
+#group_images_text {
+    font-size: 13px;
+    font-family: Open Sans;
+}
+
+#btn_previous,
+#btn_next {
+    width: 48px;
+    height:48px;
+    border-radius: 24px;
+    background-color: #FFDB5B;
+}
+
+#btn_refresh {
+    height:36px;
+    width: 120px;
+    border-radius: 18px;
+    background-color: #FFDB5B;
+    font-size: 13px;
+    font-family: Open Sans;
+}
+
+#chart_str {
+    font-size: 16px;
+    font-family: Open Sans;
+}
+
+#chart {
+    border-style: solid;
+    border-width: 1px;
+    border-color: #d6d9dc;
 }

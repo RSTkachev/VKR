@@ -1,11 +1,14 @@
 # Импорт библиотек
-import os
-import shutil
+from os import walk
+from os.path import exists
+from shutil import copy2
+from pathlib import Path
 from time import strftime, localtime
 
 import filetype
 import cv2
-from pathlib import Path
+import pandas as pd
+from torch.cuda import device_count, get_device_name, empty_cache
 
 import ultralytics
 from PySide6.QtGui import Qt
@@ -19,6 +22,7 @@ class DetectionWorker(QThread):
     set_progress_bar_value = Signal(int)
     # Переменная для досрочного завершения обработки
     is_working = True
+    # Файл для сохранения статистики
 
     # Загрузка модели
     @Slot()
@@ -26,21 +30,36 @@ class DetectionWorker(QThread):
         self.model = ultralytics.YOLO('./resources/model_ru.pt', verbose=False)
 
     # Обарботка
-    @Slot(str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
-    def make_prediction(self, source, destination, confidence, to_save_image, to_save_statistic, to_group_images):
-        current_time = localtime()
+    @Slot(str, str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
+    def make_prediction(self, device, source, destination, confidence, to_save_image, to_save_statistic, to_group_images):
         # Сигналы для обновления элементов интерфейса
         self.set_progress_bar_value.emit(0)
         self.set_enable_state.emit()
+
+        if exists('statistic.csv'):
+            statistic = pd.read_csv('statistic.csv')
+        else:
+            statistic = pd.DataFrame()
+
+        current_time = localtime()
+
+        dev_cnt = device_count()
+        devices = {'CPU': 'cpu'}
+        for device_index in range(dev_cnt):
+            devices[get_device_name(device_index)] = device_index
+
+        self.model.to(devices[device])
+        empty_cache()
 
         all_classes = self.model.names
 
         # Количество животных на детекциях
         animal_count = {x: 0 for x in all_classes.keys()}
+        cnt_without_detection = 0
 
         # Список валидных файлов
         files = []
-        for folder, _, filenames in os.walk(source):
+        for folder, _, filenames in walk(source):
             for filename in filenames:
                 if filetype.is_image(f'{folder}/{filename}') or filetype.is_video(f'{folder}/{filename}'):
                     files.append(f'{folder}/{filename}')
@@ -81,7 +100,7 @@ class DetectionWorker(QThread):
                         filename=f"{destination}/detection/{files[index]}",
                         fourcc=fourcc,
                         fps=fps,
-                        frameSize=(int(width), int(height))
+                        frameSize=(int(width), int(height)),
                     )
 
                     for image in prediction:
@@ -92,7 +111,7 @@ class DetectionWorker(QThread):
                         video.release()
 
                 elif to_group_images == Qt.CheckState.Checked:
-                    shutil.copy2(files[index], f"{destination}/detection/{files[index].split('/')[-1]}")
+                    copy2(files[index], f"{destination}/detection/{files[index].split('/')[-1]}")
 
                 else:
                     for image in prediction:
@@ -109,21 +128,31 @@ class DetectionWorker(QThread):
 
                     else:
                         for index_class in detected_objects:
-                            image.copy2(files[index], f'{destination}/detection/{all_classes[index_class]}/{files[index].split("/")[-1]}')
+                            copy2(files[index], f'{destination}/detection/{all_classes[index_class]}')
 
                 elif to_save_image == Qt.CheckState.Checked:
                     image.save(f'{destination}/detection/{files[index].split("/")[-1]}')
 
-            for detected_object in detected_objects:
-                animal_count[detected_object] += 1
+            if len(detected_objects) > 0:
+                for detected_object in detected_objects:
+                    animal_count[detected_object] += 1
+            else:
+                cnt_without_detection += 1
 
             progress = int((index + 1) / count * 100)
             self.set_progress_bar_value.emit(progress)
 
+        size_of_statistic = statistic.shape[0]
+        for key, value in zip(animal_count.keys(), animal_count.values()):
+            statistic.loc[size_of_statistic, all_classes[key]] = int(value)
+        statistic.loc[size_of_statistic, 'Без детекции'] = int(cnt_without_detection)
+        statistic.fillna(0, inplace=True)
+        statistic.to_csv('statistic.csv', index=False)
+
         if to_save_statistic == Qt.CheckState.Checked:
-            with open(f'{destination}/statistic.txt', 'а') as file:
-                file.write(f'{strftime("%d-%m-%Y %H:%M:%S", current_time)}')
-                file.write(f'Обработано {count}')
+            with open(f'{destination}/detection/statistic.txt', mode='a') as file:
+                file.write(f'{strftime("%d-%m-%Y %H:%M:%S", current_time)}\n')
+                file.write(f'Обработано {count}\n')
                 for key in all_classes:
                     file.write(f'{all_classes[key]}: {animal_count[key]}\n')
         self.set_enable_state.emit()
