@@ -1,8 +1,10 @@
 # Импорт библиотек
 import os
 
-from PySide6.QtWidgets import QWidget, QFileDialog, QPushButton, QGridLayout, QProgressBar,\
+from PySide6.QtWidgets import (
+    QWidget, QFileDialog, QPushButton, QGridLayout, QProgressBar,
     QLabel, QComboBox, QLineEdit, QDoubleSpinBox, QCheckBox, QMessageBox
+)
 from PySide6.QtGui import QIcon, Qt
 from PySide6.QtCore import QThread, Signal, Slot
 from torch.cuda import device_count, get_device_name
@@ -23,8 +25,9 @@ class DetectionWidget(QWidget):
         self.worker = DetectionWorker()
         self.worker_thread = QThread()
         self.worker.set_enable_state.connect(self.upload_btn_set_enable_state)
+        self.worker.set_abort_button_state.connect(self.upload_abort_button_state)
         self.worker.set_progress_bar_value.connect(self.upload_progress_bar_value)
-        self.load_model_signal.connect(self.worker.load_model)
+        self.worker.inform_end.connect(self.inform_about_end_processing)
         self.prediction_signal.connect(self.worker.make_prediction)
         self.worker.moveToThread(self.worker_thread)
         self.worker_thread.start()
@@ -36,11 +39,11 @@ class DetectionWidget(QWidget):
         self.btn_upload.clicked.connect(self.process)
         self.btn_upload.setObjectName(u"btn_upload")
         self.btn_upload.setMaximumWidth(150)
+        self.btn_upload.setToolTip('Выполнить обработку материалов')
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setObjectName(u"progress_bar")
-        self.progress_bar.setVisible(True)
 
         global_settings = QLabel()
         global_settings.setText('Глобальные настройки')
@@ -125,10 +128,17 @@ class DetectionWidget(QWidget):
         group_images_text.setObjectName(u"group_images_text")
         group_images_text.setToolTip('Параметр определяет, необходимо ли группировать изображения по классам. Требует указания директории сохранения')
 
+        self.abort_button = QPushButton()
+        self.abort_button.setText('')
+        self.abort_button.setIcon(QIcon('./resources/icons/x.svg'))
+        self.abort_button.setObjectName(u'abort_button')
+        self.abort_button.clicked.connect(self.abort_button_clicked)
+        self.abort_button.setEnabled(False)
+        self.abort_button.setToolTip('Прервать обработку')
+
         # Определение и настройка шаблона
         layout = QGridLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-        layout.setContentsMargins(40, 40, 40, 40)
 
         layout.addWidget(global_settings, 0, 0, 1, 3, Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(device_text, 1, 0, 1, 1,  Qt.AlignmentFlag.AlignVCenter)
@@ -144,24 +154,26 @@ class DetectionWidget(QWidget):
 
         layout.addWidget(saving_settings, 0, 3, 1, 2, Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.save_images, 1, 3, 1, 1, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-        layout.addWidget(save_images_text, 1, 4, 1, 1,  Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(save_images_text, 1, 4, 1, 2,  Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.save_statistic, 2, 3, 1, 1, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-        layout.addWidget(save_statistic_text, 2, 4, 1, 1,  Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(save_statistic_text, 2, 4, 1, 2,  Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.group_images, 3, 3, 1, 1, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-        layout.addWidget(group_images_text, 3, 4, 1, 1,  Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(group_images_text, 3, 4, 1, 2,  Qt.AlignmentFlag.AlignVCenter)
 
         layout.addWidget(self.btn_upload, 6, 0, 1, 1,  Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.progress_bar, 6, 1, 1, 4,  Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.abort_button, 6, 5, 1, 1, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
 
-        layout.setContentsMargins(40, 40, 60, 60)
+        layout.setContentsMargins(60, 40, 60, 40)
         layout.setVerticalSpacing(20)
         layout.setHorizontalSpacing(10)
 
-        layout.setColumnStretch(0, 2)
-        layout.setColumnStretch(1, 2)
-        layout.setColumnStretch(2, 1)
-        layout.setColumnStretch(3, 1)
-        layout.setColumnStretch(4, 4)
+        layout.setColumnStretch(0, 16)
+        layout.setColumnStretch(1, 16)
+        layout.setColumnStretch(2, 8)
+        layout.setColumnStretch(3, 8)
+        layout.setColumnStretch(4, 32)
+        layout.setColumnStretch(5, 1)
 
         self.setLayout(layout)
 
@@ -203,13 +215,41 @@ class DetectionWidget(QWidget):
 
         self.prediction_signal.emit(device, source, destination, confidence, save_image, save_statistic, group_images)
 
+    def abort_button_clicked(self):
+        self.worker.is_working = False
+
     # Блокировка кнопки обработки
     @Slot()
     def upload_btn_set_enable_state(self):
         is_enable = self.btn_upload.isEnabled()
         self.btn_upload.setEnabled(not is_enable)
 
+    # Блокировка кнопки прерыва обработки
+    @Slot(bool)
+    def upload_abort_button_state(self, is_abort):
+        is_enable = self.abort_button.isEnabled()
+        self.abort_button.setEnabled(not is_enable)
+        if is_abort:
+            self.progress_bar.setStyleSheet(
+                "QProgressBar:chunk"
+                "{"
+                "background-color : #E3887A;"
+                "}"
+            )
+        else:
+            self.progress_bar.setStyleSheet(
+                "QProgressBar:chunk"
+                "{"
+                "background-color:rgb(90, 168, 114);"
+                "}"
+            )
+
     # Обновление значения progress bar
     @Slot(int)
     def upload_progress_bar_value(self, progress):
         self.progress_bar.setValue(progress)
+
+    # Информирование пользователя о конце обработки
+    @Slot()
+    def inform_about_end_processing(self):
+        QMessageBox.information(self, 'Обработка завершена', 'Обработка завершена успешно')

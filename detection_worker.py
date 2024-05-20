@@ -19,27 +19,26 @@ from PySide6.QtCore import QThread, Signal, Slot
 class DetectionWorker(QThread):
     # Сигналы для изменения интерфейса
     set_enable_state = Signal()
+    set_abort_button_state = Signal(bool)
     set_progress_bar_value = Signal(int)
+    inform_end = Signal()
     # Переменная для досрочного завершения обработки
     is_working = True
     # Файл для сохранения статистики
 
-    # Загрузка модели
-    @Slot()
-    def load_model(self):
+    def __init__(self):
+        super().__init__()
+        # Загрузка модели
         self.model = ultralytics.YOLO('./resources/model_ru.pt', verbose=False)
 
     # Обарботка
     @Slot(str, str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
     def make_prediction(self, device, source, destination, confidence, to_save_image, to_save_statistic, to_group_images):
+        self.is_working = True
         # Сигналы для обновления элементов интерфейса
         self.set_progress_bar_value.emit(0)
         self.set_enable_state.emit()
-
-        if exists('statistic.csv'):
-            statistic = pd.read_csv('statistic.csv')
-        else:
-            statistic = pd.DataFrame()
+        self.set_abort_button_state.emit(False)
 
         current_time = localtime()
 
@@ -78,6 +77,8 @@ class DetectionWorker(QThread):
 
         for index in range(0, count):
             if not self.is_working:
+                self.set_enable_state.emit()
+                self.set_abort_button_state.emit(True)
                 return
             # Запуск детекции
             prediction = self.model.predict(files[index], verbose=False, stream=True, conf=confidence)
@@ -105,6 +106,8 @@ class DetectionWorker(QThread):
 
                     for image in prediction:
                         if not self.is_working:
+                            self.set_enable_state.emit()
+                            self.set_abort_button_state.emit(True)
                             return
                         detected_objects.update(image.boxes.cls.tolist())
                         video.write(image.plot())
@@ -142,12 +145,7 @@ class DetectionWorker(QThread):
             progress = int((index + 1) / count * 100)
             self.set_progress_bar_value.emit(progress)
 
-        size_of_statistic = statistic.shape[0]
-        for key, value in zip(animal_count.keys(), animal_count.values()):
-            statistic.loc[size_of_statistic, all_classes[key]] = int(value)
-        statistic.loc[size_of_statistic, 'Без детекции'] = int(cnt_without_detection)
-        statistic.fillna(0, inplace=True)
-        statistic.to_csv('statistic.csv', index=False)
+        self.save_internal_statistic(animal_count, all_classes, cnt_without_detection)
 
         if to_save_statistic == Qt.CheckState.Checked:
             with open(f'{destination}/detection/statistic.txt', mode='a') as file:
@@ -156,3 +154,18 @@ class DetectionWorker(QThread):
                 for key in all_classes:
                     file.write(f'{all_classes[key]}: {animal_count[key]}\n')
         self.set_enable_state.emit()
+        self.set_abort_button_state.emit(False)
+        self.inform_end.emit()
+
+    def save_internal_statistic(self, counts: dict, names: list, without_detection: int):
+        if exists('statistic.csv'):
+            statistic = pd.read_csv('statistic.csv')
+        else:
+            statistic = pd.DataFrame()
+
+        size_of_statistic = statistic.shape[0]
+        for key, value in zip(counts.keys(), counts.values()):
+            statistic.loc[size_of_statistic, names[key]] = value
+        statistic.loc[size_of_statistic, 'Без детекции'] = without_detection
+        statistic.fillna(0, inplace=True)
+        statistic.to_csv('statistic.csv', index=False)

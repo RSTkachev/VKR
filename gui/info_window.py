@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget,QLabel, QSizePolicy, QGridLayout
+from PySide6.QtWidgets import QWidget, QLabel, QSizePolicy, QGridLayout
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QPixmap, QFont
 
@@ -18,12 +18,13 @@ class InfoWidget(QWidget):
 
         app_name = QLabel()
         app_name.setText('\n' + resources.strings.app_name.upper())
-        app_name.setFont(QFont('Segoe UI Semibold', 14))
+        app_name.setFont(QFont('Open Sans Semibold', 14))
         app_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         text_info = QLabel()
         text_info.setText(resources.strings.info_text)
-        text_info.setFont(QFont('Segoe UI', 12))
+        text_info.setFont(QFont('Open Sans', 12))
+        text_info.adjustSize()
         text_info.setWordWrap(True)
         text_info.setScaledContents(True)
 
@@ -50,17 +51,17 @@ class InfoWidget(QWidget):
 
         contact_info = QLabel()
         contact_info.setText('КОНТАКТНАЯ ИНФОРМАЦИЯ')
-        contact_info.setFont(QFont('Segoe UI Semibold', 14))
+        contact_info.setFont(QFont('Open Sans Semibold', 14))
         contact_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         phone_number = QLabel()
         phone_number.setText(f'Телефон:\n{resources.strings.phone_number}')
-        phone_number.setFont(QFont('Segoe UI', 12))
+        phone_number.setFont(QFont('Open Sans', 12))
         phone_number.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         email = QLabel()
         email.setText(f'Email:\n{resources.strings.email}')
-        email.setFont(QFont('Segoe UI', 12))
+        email.setFont(QFont('Open Sans', 12))
         email.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         layout = QGridLayout()

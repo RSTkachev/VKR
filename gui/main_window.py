@@ -1,8 +1,8 @@
-from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QWidget, QMessageBox
+from PySide6.QtWidgets import QMainWindow, QWidget, QListWidgetItem, QMessageBox
 from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QIcon, QPixmap, QCloseEvent
+from PySide6.QtGui import QIcon, QCloseEvent
 
-from gui.main_window_ui import Ui_MainWindow
+from gui.main_window_ui import UiMainWindow
 from gui.detection_window import DetectionWidget
 from gui.statistic_window import StatisticWidget
 from gui.info_window import InfoWidget
@@ -12,24 +12,14 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # Initialize the UI from the generated 'main_ui' class
-        self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)
-
-        # Set window properties
-        self.setWindowIcon(QIcon("./resources/icons/deer.svg"))
-        self.setWindowTitle("Wild Life Detection")
-        self.setMinimumSize(QSize(1280, 800))
+        # Инициализация контейнера для UI
+        self.ui = UiMainWindow(self)
 
         # Initialize UI elements
         self.title_label = self.ui.title_label
-        self.title_label.setText("WLD")
         self.title_label.hide()
 
         self.title_icon = self.ui.title_icon
-        self.title_icon.setPixmap(QPixmap("./resources/icons/deer.svg"))
-        self.setIconSize(QSize(24, 24))
-        self.title_icon.setScaledContents(True)
         self.title_icon.hide()
 
         self.side_menu = self.ui.listWidget
@@ -39,10 +29,6 @@ class MainWindow(QMainWindow):
         self.side_menu_collapsed.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         self.menu_btn = self.ui.menu_btn
-        self.menu_btn.setIcon(QIcon("./resources/icons/menu.svg"))
-        self.menu_btn.setText('')
-
-        self.menu_btn.setIconSize(QSize(24, 24))
         self.menu_btn.setCheckable(True)
         self.menu_btn.setChecked(True)
 
@@ -109,7 +95,6 @@ class MainWindow(QMainWindow):
             self.main_content.removeWidget(widget)
 
         for menu in self.menu_list:
-            text = menu.get("name")
             new_page = menu.get('widget')
             self.main_content.addWidget(new_page)
 
@@ -121,11 +106,9 @@ class MainWindow(QMainWindow):
             button = QMessageBox.question(self, "Закрытие приложения", "Вы действительно хотите прервать обработку?")
 
             if button == QMessageBox.StandardButton.Yes:
-                # TODO Сделать корректное завершение программы во время работы детектора
                 self.menu_list[0]['widget'].worker.is_working = False
                 self.menu_list[0]['widget'].worker_thread.quit()
                 self.menu_list[0]['widget'].worker_thread.wait()
                 event.accept()
             else:
                 event.ignore()
-

@@ -1,7 +1,7 @@
 /* Define styles for the 'title_label' widget */
 #title_label {
-    font-size: 16px;
-    font-family: Segoe UI Semibold;
+    font-size: 18px;
+    font-family: Open Sans Semibold;
 }
 
 /* Define styles for the 'title_icon' widget */
@@ -42,17 +42,15 @@ QListWidget,
 #listWidget,
 #listWidget_collapsed {
     font-size: 14px;
-    font-family: Segoe UI;
+    font-family: Open Sans;
     border: none;
 }
 
 /* Border radius for '#listWidget' and '#listWidget_collapsed' items */
 #listWidget::item,
 #listWidget_collapsed::item {
-    border-top-left-radius: 15px;
-    border-bottom-left-radius: 15px;
     padding-left: 12px;
-    border: none;
+    border-right: none;
 }
 
 
@@ -60,17 +58,21 @@ QListWidget,
 #listWidget::item:hover,
 #listWidget_collapsed::item:hover {
     widget-animation-duration: 2000;
+    border: none;
 }
 
 /* Selected item styles for list items */
 #listWidget::item:selected,
 #listWidget_collapsed::item:selected {
     background-color:rgb(255, 249, 227);
+    border-top-left-radius: 20px;
+    border-bottom-left-radius: 20px;
+    border: none;
 }
 
 #btn_upload {
     background-color: #FFDB5B;
-    border-radius: 10px;
+    border-radius: 12px;
     height: 24px;
     font-size: 13px;
     font-family: Open Sans;
@@ -88,20 +90,21 @@ QListWidget,
 }
 
 #progress_bar::chunk {
-    border-radius: 10px;
+    border-radius: 12px;
     background-color:rgb(90, 168, 114);
 }
 
 #global_settings,
 #saving_settings {
     font-size: 16px;
-    font-family: Segoe UI Semibold;
+    font-family: Open Sans Semibold;
 }
 
 #loading_button,
-#saving_button {
+#saving_button,
+#abort_button {
     background-color: #FFDB5B;
-    border-radius: 10px;
+    border-radius: 12px;
     height: 24px;
     width: 24px;
 }
@@ -132,6 +135,26 @@ QListWidget,
     background-color: #FFDB5B;
     font-size: 13px;
     font-family: Open Sans;
+}
+
+#btn_upload:hover,
+#loading_button:hover,
+#saving_button:hover,
+#btn_previous:hover,
+#btn_next:hover,
+#btn_refresh:hover,
+#abort_button:hover {
+    background-color: #ffcf23;
+}
+
+#btn_upload:pressed,
+#loading_button:pressed,
+#saving_button:pressed,
+#btn_previous:pressed,
+#btn_next:pressed,
+#btn_refresh:pressed,
+#abort_button:pressed {
+    background-color: #e6b300;
 }
 
 #chart_str {
