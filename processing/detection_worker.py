@@ -3,33 +3,30 @@ from os import walk
 from os.path import exists
 from shutil import copy2
 from pathlib import Path
-from time import strftime, localtime
 
-import filetype
+from filetype import is_image, is_video
 import cv2
 import pandas as pd
 from torch.cuda import device_count, get_device_name, empty_cache
 
-import ultralytics
+from ultralytics import YOLO
 from PySide6.QtGui import Qt
 from PySide6.QtCore import QThread, Signal, Slot
 
 
 # Класс-обработчик
 class DetectionWorker(QThread):
+    # Модель детектора
+    model = None
+
     # Сигналы для изменения интерфейса
     set_enable_state = Signal()
     set_abort_button_state = Signal(bool)
     set_progress_bar_value = Signal(int)
     inform_end = Signal()
-    # Переменная для досрочного завершения обработки
-    is_working = True
-    # Файл для сохранения статистики
 
-    def __init__(self):
-        super().__init__()
-        # Загрузка модели
-        self.model = ultralytics.YOLO('./resources/model_ru.pt', verbose=False)
+    # Переменная для досрочного завершения обработки
+    is_working = False
 
     # Обарботка
     @Slot(str, str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
@@ -40,7 +37,8 @@ class DetectionWorker(QThread):
         self.set_enable_state.emit()
         self.set_abort_button_state.emit(False)
 
-        current_time = localtime()
+        if not self.model:
+            self.model = YOLO('../resources/model_ru.pt', verbose=False)
 
         dev_cnt = device_count()
         devices = {'CPU': 'cpu'}
@@ -54,17 +52,28 @@ class DetectionWorker(QThread):
 
         # Количество животных на детекциях
         animal_count = {x: 0 for x in all_classes.keys()}
+
+        columns = ['full_path', 'filename']
+        for class_name in all_classes.values():
+            columns.append(class_name)
         cnt_without_detection = 0
+
+        if exists(f'{destination}/detection/statistic.csv'):
+            full_statistic = pd.read_csv(f'{destination}/detection/statistic.csv')
+        else:
+            full_statistic = pd.DataFrame(columns=columns)
+
+        statistic_size = full_statistic.shape[0]
 
         # Список валидных файлов
         files = []
         for folder, _, filenames in walk(source):
             for filename in filenames:
-                if filetype.is_image(f'{folder}/{filename}') or filetype.is_video(f'{folder}/{filename}'):
+                if is_image(f'{folder}/{filename}') or is_video(f'{folder}/{filename}'):
                     files.append(f'{folder}/{filename}')
 
         # Создание папок для сохранения детектированных изображений
-        if to_save_image == Qt.CheckState.Checked:
+        if to_save_image == Qt.CheckState.Checked or to_save_statistic == Qt.CheckState.Checked:
             Path(f'{destination}/detection').mkdir(parents=True, exist_ok=True)
 
         # Создание папок для каждого класса животных
@@ -76,6 +85,8 @@ class DetectionWorker(QThread):
         count = len(files)
 
         for index in range(0, count):
+            full_statistic.loc[index + statistic_size, 'full_path'] = files[index]
+            full_statistic.loc[index + statistic_size, 'filename'] = files[index].split('/')[-1]
             if not self.is_working:
                 self.set_enable_state.emit()
                 self.set_abort_button_state.emit(True)
@@ -87,7 +98,7 @@ class DetectionWorker(QThread):
             detected_objects = set()
 
             # Если изначальный объект является видео
-            if filetype.is_video(files[index]):
+            if is_video(files[index]):
 
                 # Если необходимо сохранить видео
                 if to_save_image == Qt.CheckState.Checked:
@@ -113,12 +124,15 @@ class DetectionWorker(QThread):
                         video.write(image.plot())
                         video.release()
 
-                elif to_group_images == Qt.CheckState.Checked:
-                    copy2(files[index], f"{destination}/detection/{files[index].split('/')[-1]}")
-
                 else:
                     for image in prediction:
                         detected_objects.update(image.boxes.cls.tolist())
+                        if not self.is_working:
+                            self.set_enable_state.emit()
+                            self.set_abort_button_state.emit(True)
+                            return
+                    if to_group_images == Qt.CheckState.Checked:
+                        copy2(files[index], f"{destination}/detection/{files[index].split('/')[-1]}")
 
             else:
                 image = prediction.__next__()
@@ -139,6 +153,7 @@ class DetectionWorker(QThread):
             if len(detected_objects) > 0:
                 for detected_object in detected_objects:
                     animal_count[detected_object] += 1
+                    full_statistic.loc[index + statistic_size, self.model.names[detected_object]] = 1
             else:
                 cnt_without_detection += 1
 
@@ -148,18 +163,16 @@ class DetectionWorker(QThread):
         self.save_internal_statistic(animal_count, all_classes, cnt_without_detection)
 
         if to_save_statistic == Qt.CheckState.Checked:
-            with open(f'{destination}/detection/statistic.txt', mode='a') as file:
-                file.write(f'{strftime("%d-%m-%Y %H:%M:%S", current_time)}\n')
-                file.write(f'Обработано {count}\n')
-                for key in all_classes:
-                    file.write(f'{all_classes[key]}: {animal_count[key]}\n')
+            full_statistic.to_csv(f'{destination}/detection/statistic.csv', index=False)
+
         self.set_enable_state.emit()
         self.set_abort_button_state.emit(False)
         self.inform_end.emit()
+        self.is_working = False
 
     def save_internal_statistic(self, counts: dict, names: list, without_detection: int):
-        if exists('statistic.csv'):
-            statistic = pd.read_csv('statistic.csv')
+        if exists('./resources/statistic.csv'):
+            statistic = pd.read_csv('./resources/statistic.csv')
         else:
             statistic = pd.DataFrame()
 
@@ -168,4 +181,4 @@ class DetectionWorker(QThread):
             statistic.loc[size_of_statistic, names[key]] = value
         statistic.loc[size_of_statistic, 'Без детекции'] = without_detection
         statistic.fillna(0, inplace=True)
-        statistic.to_csv('statistic.csv', index=False)
+        statistic.to_csv('./resources/statistic.csv', index=False)

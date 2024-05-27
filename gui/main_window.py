@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QMainWindow, QWidget, QListWidgetItem, QMessageBox
+from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QMessageBox
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon, QCloseEvent
 
@@ -62,11 +62,13 @@ class MainWindow(QMainWindow):
         self.menu_btn.toggled['bool'].connect(self.side_menu_collapsed.setVisible)
         self.menu_btn.toggled['bool'].connect(self.title_icon.setHidden)
 
-        self.side_menu.currentRowChanged['int'].connect(self.main_content.setCurrentIndex)
-        self.side_menu.setIconSize(QSize(24, 24))
-        self.side_menu_collapsed.currentRowChanged['int'].connect(self.main_content.setCurrentIndex)
-        self.side_menu.currentRowChanged['int'].connect(self.side_menu_collapsed.setCurrentRow)
         self.side_menu_collapsed.currentRowChanged['int'].connect(self.side_menu.setCurrentRow)
+        self.side_menu.currentRowChanged['int'].connect(self.side_menu_collapsed.setCurrentRow)
+
+        self.side_menu.currentRowChanged['int'].connect(self.main_content.setCurrentIndex)
+        self.side_menu_collapsed.currentRowChanged['int'].connect(self.main_content.setCurrentIndex)
+
+        self.side_menu.setIconSize(QSize(24, 24))
         self.side_menu_collapsed.setIconSize(QSize(24, 24))
 
     def init_list_widget(self):
@@ -90,17 +92,14 @@ class MainWindow(QMainWindow):
             self.side_menu.setCurrentRow(0)
 
     def init_stackwidget(self):
-        widget_list = self.main_content.findChildren(QWidget)
-        for widget in widget_list:
-            self.main_content.removeWidget(widget)
-
         for menu in self.menu_list:
             new_page = menu.get('widget')
             self.main_content.addWidget(new_page)
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        if self.menu_list[0]['widget'].btn_upload.isEnabled():
-            self.menu_list[0]['widget'].worker_thread.exit(0)
+        if not self.menu_list[0]['widget'].worker.is_working:
+            self.menu_list[0]['widget'].worker_thread.quit()
+            self.menu_list[0]['widget'].worker_thread.wait()
             event.accept()
         else:
             button = QMessageBox.question(self, "Закрытие приложения", "Вы действительно хотите прервать обработку?")

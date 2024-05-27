@@ -1,5 +1,5 @@
 # Импорт библиотек
-import os
+from os import path
 
 from PySide6.QtWidgets import (
     QWidget, QFileDialog, QPushButton, QGridLayout, QProgressBar,
@@ -9,13 +9,12 @@ from PySide6.QtGui import QIcon, Qt
 from PySide6.QtCore import QThread, Signal, Slot
 from torch.cuda import device_count, get_device_name
 
-from detection_worker import DetectionWorker
+from processing.detection_worker import DetectionWorker
 
 
 # Класс окна интерфейса
 class DetectionWidget(QWidget):
-    # Сигналы потоку-обработчику
-    load_model_signal = Signal()
+    # Сигнал потоку-обработчику
     prediction_signal = Signal(str, str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
 
     def __init__(self):
@@ -31,15 +30,14 @@ class DetectionWidget(QWidget):
         self.prediction_signal.connect(self.worker.make_prediction)
         self.worker.moveToThread(self.worker_thread)
         self.worker_thread.start()
-        self.load_model_signal.emit()
 
         # Элементы окна
         self.btn_upload = QPushButton()
-        self.btn_upload.setText('Обработать')
+        self.btn_upload.setText('Выполнить детекцию')
         self.btn_upload.clicked.connect(self.process)
         self.btn_upload.setObjectName(u"btn_upload")
-        self.btn_upload.setMaximumWidth(150)
-        self.btn_upload.setToolTip('Выполнить обработку материалов')
+        self.btn_upload.setMaximumWidth(200)
+        self.btn_upload.setToolTip('Выполнить детекцию на выбранных материалах')
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
@@ -51,7 +49,7 @@ class DetectionWidget(QWidget):
 
         device_text = QLabel()
         device_text.setObjectName(u"device_text")
-        device_text.setText('Устройство обработки')
+        device_text.setText('Устройство выполнения детекции')
         device_text.setToolTip('Параметр определяет, на каком устройстве будет производиться детекция')
 
         dev_cnt = device_count()
@@ -108,9 +106,9 @@ class DetectionWidget(QWidget):
         self.save_images.setCheckState(Qt.CheckState.Checked)
 
         save_images_text = QLabel()
-        save_images_text.setText('Сохранять обработанные изображения')
+        save_images_text.setText('Сохранять изображения с отметками детекций')
         save_images_text.setObjectName(u"save_image_text")
-        save_images_text.setToolTip('Параметр определяет, необходимо ли сохранять обработанные изображения. Требует указания директории сохранения')
+        save_images_text.setToolTip('Параметр определяет, сохранять ли изображения с отметками детекций. Требует указания директории сохранения')
 
         self.save_statistic = QCheckBox()
         self.save_statistic.setCheckState(Qt.CheckState.Checked)
@@ -124,7 +122,7 @@ class DetectionWidget(QWidget):
         self.group_images.setCheckState(Qt.CheckState.Checked)
 
         group_images_text = QLabel()
-        group_images_text.setText('Группировать изображения')
+        group_images_text.setText('Группировать изображения по классам')
         group_images_text.setObjectName(u"group_images_text")
         group_images_text.setToolTip('Параметр определяет, необходимо ли группировать изображения по классам. Требует указания директории сохранения')
 
@@ -134,7 +132,7 @@ class DetectionWidget(QWidget):
         self.abort_button.setObjectName(u'abort_button')
         self.abort_button.clicked.connect(self.abort_button_clicked)
         self.abort_button.setEnabled(False)
-        self.abort_button.setToolTip('Прервать обработку')
+        self.abort_button.setToolTip('Прервать выполнение детекции')
 
         # Определение и настройка шаблона
         layout = QGridLayout()
@@ -198,19 +196,19 @@ class DetectionWidget(QWidget):
         group_images = self.group_images.checkState()
         if not source:
             dialog = QMessageBox(self)
-            dialog.warning(self, 'Обработка невозможна!', 'Пожалуйста, введите источник', QMessageBox.StandardButton.Ok)
+            dialog.warning(self, 'Обработка невозможна!', 'Пожалуйста, введите директорию загрузки', QMessageBox.StandardButton.Ok)
             return
-        if not os.path.isdir(source):
+        if not path.isdir(source):
             dialog = QMessageBox(self)
-            dialog.warning(self, 'Обработка невозможна!', 'Источник некорректен', QMessageBox.StandardButton.Ok)
+            dialog.warning(self, 'Обработка невозможна!', 'Путь директории загрузки некорректен', QMessageBox.StandardButton.Ok)
             return
-        if not destination and save_image == Qt.CheckState.Checked:
+        if not destination and (save_image == Qt.CheckState.Checked or save_statistic == Qt.CheckState.Checked or group_images == Qt.CheckState.Checked):
             dialog = QMessageBox(self)
-            dialog.warning(self, 'Обработка невозможна!', 'Пожалуйста, введите путь сохранения', QMessageBox.StandardButton.Ok)
+            dialog.warning(self, 'Обработка невозможна!', 'Пожалуйста, введите директорию сохранения', QMessageBox.StandardButton.Ok)
             return
-        if destination and not os.path.isdir(destination):
+        if destination and not path.isdir(destination):
             dialog = QMessageBox(self)
-            dialog.warning(self, 'Обработка невозможна!', 'Путь сохранения некорректен', QMessageBox.StandardButton.Ok)
+            dialog.warning(self, 'Обработка невозможна!', 'Путь директории сохранения некорректен', QMessageBox.StandardButton.Ok)
             return
 
         self.prediction_signal.emit(device, source, destination, confidence, save_image, save_statistic, group_images)
@@ -252,4 +250,4 @@ class DetectionWidget(QWidget):
     # Информирование пользователя о конце обработки
     @Slot()
     def inform_about_end_processing(self):
-        QMessageBox.information(self, 'Обработка завершена', 'Обработка завершена успешно')
+        QMessageBox.information(self, 'Детекция завершена', 'Детекция материалов завершена успешно')

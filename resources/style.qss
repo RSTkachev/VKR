@@ -137,13 +137,23 @@ QListWidget,
     font-family: Open Sans;
 }
 
+#btn_clear {
+    height:36px;
+    width: 160px;
+    border-radius: 18px;
+    background-color: #FFDB5B;
+    font-size: 13px;
+    font-family: Open Sans;
+}
+
 #btn_upload:hover,
 #loading_button:hover,
 #saving_button:hover,
 #btn_previous:hover,
 #btn_next:hover,
 #btn_refresh:hover,
-#abort_button:hover {
+#abort_button:hover,
+#btn_clear:hover {
     background-color: #ffcf23;
 }
 
@@ -153,7 +163,8 @@ QListWidget,
 #btn_previous:pressed,
 #btn_next:pressed,
 #btn_refresh:pressed,
-#abort_button:pressed {
+#abort_button:pressed,
+#btn_clear:pressed {
     background-color: #e6b300;
 }
 

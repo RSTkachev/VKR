@@ -1,3 +1,4 @@
+from os import remove
 from os.path import exists
 
 import pandas as pd
@@ -5,11 +6,7 @@ from PySide6.QtWidgets import QWidget, QLabel, QPushButton, QGridLayout
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QIcon
 
-import matplotlib
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-matplotlib.use('Qt5Agg')
+from processing.plot_creator import plot_chart
 
 
 class StatisticWidget(QWidget):
@@ -30,6 +27,7 @@ class StatisticWidget(QWidget):
         self.button_previous = QPushButton()
         self.button_previous.setText('')
         self.button_previous.setIcon(QIcon('./resources/icons/chevron-left.svg'))
+        self.button_previous.setToolTip('Перейти к статистике предыдущей детекции')
         self.button_previous.setObjectName(u'btn_previous')
         self.button_previous.setVisible(False)
         self.button_previous.clicked.connect(self.load_previous_chart)
@@ -37,9 +35,17 @@ class StatisticWidget(QWidget):
         self.button_next = QPushButton()
         self.button_next.setText('')
         self.button_next.setIcon(QIcon('./resources/icons/chevron-right.svg'))
+        self.button_next.setToolTip('Перейти к статистике следующей детекции')
         self.button_next.setObjectName(u'btn_next')
         self.button_next.setVisible(False)
         self.button_next.clicked.connect(self.load_next_chart)
+
+        self.button_clear = QPushButton()
+        self.button_clear.setText('Сбросить статистику')
+        self.button_clear.setIcon(QIcon('./resources/icons/trash.svg'))
+        self.button_clear.setObjectName(u'btn_clear')
+        self.button_clear.setVisible(False)
+        self.button_clear.clicked.connect(self.clear_statistic)
 
         self.chart_text = QLabel()
         self.chart_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -50,8 +56,8 @@ class StatisticWidget(QWidget):
         self.chart.setObjectName(u'chart')
         self.chart.setVisible(False)
 
-        if exists('./statistic.csv'):
-            self.statistic_file = pd.read_csv('./statistic.csv')
+        if exists('./resources/statistic.csv'):
+            self.statistic_file = pd.read_csv('./resources/statistic.csv')
             self.cnt_detections = self.statistic_file.shape[0]
 
         layout = QGridLayout()
@@ -63,6 +69,12 @@ class StatisticWidget(QWidget):
             0, 0, 1, 1,
             alignment=Qt.AlignmentFlag.AlignCenter
             )
+
+        layout.addWidget(
+            self.button_clear,
+            0, 2, 1, 1,
+            alignment=Qt.AlignmentFlag.AlignCenter
+        )
 
         layout.addWidget(
             self.button_previous,
@@ -97,9 +109,11 @@ class StatisticWidget(QWidget):
 
         self.setLayout(layout)
 
+
         if self.cnt_detections > 0:
             self.chart_text.setVisible(False)
             self.chart.setVisible(True)
+            self.button_clear.setVisible(True)
             self.set_plot()
             if self.cnt_detections > 1:
                 self.button_next.setVisible(True)
@@ -121,8 +135,8 @@ class StatisticWidget(QWidget):
         self.set_plot()
 
     def refresh_detections(self):
-        if exists('./statistic.csv'):
-            self.statistic_file = pd.read_csv('./statistic.csv')
+        if exists('./resources/statistic.csv'):
+            self.statistic_file = pd.read_csv('./resources/statistic.csv')
             self.cnt_detections = self.statistic_file.shape[0]
 
             if self.current_detection < self.cnt_detections - 1:
@@ -131,37 +145,21 @@ class StatisticWidget(QWidget):
             if self.cnt_detections:
                 self.chart_text.setVisible(False)
                 self.chart.setVisible(True)
+                self.button_clear.setVisible(True)
                 self.set_plot()
+
+    def clear_statistic(self):
+        if exists('./resources/statistic.csv'):
+            remove('./resources/statistic.csv')
+        self.button_previous.setVisible(False)
+        self.button_next.setVisible(False)
+        self.chart.setVisible(False)
+        self.chart_text.setVisible(True)
+        self.button_clear.setVisible(False)
+        self.current_detection = 0
+        self.cnt_detections = 0
 
     def set_plot(self):
         row = self.statistic_file.iloc[self.current_detection]
         plot_chart(row)
         self.chart.setPixmap(QPixmap('./resources/plot.jpg'))
-
-
-def plot_chart(row):
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax = sns.barplot(
-        x=row.keys().to_list(),
-        y=row,
-        hue=row,
-        palette=sns.color_palette(
-            'bright',
-            row.nunique()
-        ),
-        ec='k',
-        legend=False,
-        ax=ax
-    )
-
-    ax.set_xticks(ticks=ax.get_xticks(), labels=ax.get_xticklabels(), rotation=45, ha='right')
-    plt.title('Количество обнаруженных животных')
-    add_labels(row)
-    plt.savefig('./resources/plot.jpg', bbox_inches='tight')
-    plt.close(fig)
-
-
-def add_labels(row):
-    for column in range(row.shape[0]):
-        if row.iloc[column]:
-            plt.text(column, row.iloc[column] / 2, row.iloc[column].astype(int), ha='center', rotation=90)
