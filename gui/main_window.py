@@ -1,15 +1,16 @@
-from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QMessageBox
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon, QCloseEvent
+from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QMessageBox
 
-from gui.main_window_ui import UiMainWindow
 from gui.detection_window import DetectionWidget
-from gui.statistic_window import StatisticWidget
 from gui.info_window import InfoWidget
+from gui.main_window_ui import UiMainWindow
+from gui.statistic_window import StatisticWidget
 
 
-# Окно
 class MainWindow(QMainWindow):
+    """Класс основного окна"""
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -38,44 +39,53 @@ class MainWindow(QMainWindow):
         # Страницы приложения
         self.menu_list = [
             {
-                'name': 'Главная страница',
-                'icon': './resources/icons/camera.svg',
-                'widget': DetectionWidget()
+                "name": "Главная страница",
+                "icon": "./resources/icons/camera.svg",
+                "widget": DetectionWidget(),
             },
             {
-                'name': 'Статистика',
-                'icon': './resources/icons/clock.svg',
-                'widget': StatisticWidget()
+                "name": "Статистика",
+                "icon": "./resources/icons/clock.svg",
+                "widget": StatisticWidget(),
             },
             {
-                'name': 'Информация',
-                'icon': './resources/icons/info.svg',
-                'widget': InfoWidget()
-            }
+                "name": "Информация",
+                "icon": "./resources/icons/info.svg",
+                "widget": InfoWidget(),
+            },
         ]
 
         self.init_list_widget()
         self.init_stackwidget()
         self.init_single_slot()
 
-    # Настройка бокового меню
     def init_single_slot(self) -> None:
-        self.menu_btn.toggled['bool'].connect(self.side_menu.setHidden)
-        self.menu_btn.toggled['bool'].connect(self.title_label.setHidden)
-        self.menu_btn.toggled['bool'].connect(self.side_menu_collapsed.setVisible)
-        self.menu_btn.toggled['bool'].connect(self.title_icon.setHidden)
+        """Настройка бокового меню"""
 
-        self.side_menu_collapsed.currentRowChanged['int'].connect(self.side_menu.setCurrentRow)
-        self.side_menu.currentRowChanged['int'].connect(self.side_menu_collapsed.setCurrentRow)
+        self.menu_btn.toggled["bool"].connect(self.side_menu.setHidden)
+        self.menu_btn.toggled["bool"].connect(self.title_label.setHidden)
+        self.menu_btn.toggled["bool"].connect(self.side_menu_collapsed.setVisible)
+        self.menu_btn.toggled["bool"].connect(self.title_icon.setHidden)
 
-        self.side_menu.currentRowChanged['int'].connect(self.main_content.setCurrentIndex)
-        self.side_menu_collapsed.currentRowChanged['int'].connect(self.main_content.setCurrentIndex)
+        self.side_menu_collapsed.currentRowChanged["int"].connect(
+            self.side_menu.setCurrentRow
+        )
+        self.side_menu.currentRowChanged["int"].connect(
+            self.side_menu_collapsed.setCurrentRow
+        )
+
+        self.side_menu.currentRowChanged["int"].connect(
+            self.main_content.setCurrentIndex
+        )
+        self.side_menu_collapsed.currentRowChanged["int"].connect(
+            self.main_content.setCurrentIndex
+        )
 
         self.side_menu.setIconSize(QSize(24, 24))
         self.side_menu_collapsed.setIconSize(QSize(24, 24))
 
-    # Создание элементов бокового меню
     def init_list_widget(self) -> None:
+        """Создание элементов бокового меню"""
 
         for menu in self.menu_list:
             item = QListWidgetItem()
@@ -93,24 +103,30 @@ class MainWindow(QMainWindow):
             self.side_menu.addItem(item_new)
             self.side_menu.setCurrentRow(0)
 
-    # Создание страниц
     def init_stackwidget(self) -> None:
+        """Создание страниц"""
+
         for menu in self.menu_list:
-            new_page = menu.get('widget')
+            new_page = menu.get("widget")
             self.main_content.addWidget(new_page)
 
-    # Закрытие приложения
     def closeEvent(self, event: QCloseEvent) -> None:
+        """Закрытие приложенияs"""
+
         # Если активна детекция
-        if self.menu_list[0]['widget'].worker.is_working:
+        if self.menu_list[0]["widget"].worker.is_working:
             # Сообщение о работающей детекции
-            button = QMessageBox.question(self, "Закрытие приложения", "Вы действительно хотите прервать обработку?")
+            button = QMessageBox.question(
+                self,
+                "Закрытие приложения",
+                "Вы действительно хотите прервать обработку?",
+            )
 
             # Завершение работы потока и закрытие приложения
             if button == QMessageBox.StandardButton.Yes:
-                self.menu_list[0]['widget'].worker.is_working = False
-                self.menu_list[0]['widget'].worker_thread.quit()
-                self.menu_list[0]['widget'].worker_thread.wait()
+                self.menu_list[0]["widget"].worker.is_working = False
+                self.menu_list[0]["widget"].worker_thread.quit()
+                self.menu_list[0]["widget"].worker_thread.wait()
                 event.accept()
             # Не закрывать приложение
             else:
@@ -118,6 +134,6 @@ class MainWindow(QMainWindow):
 
         # Завершение работы потока и закрытие приложения
         else:
-            self.menu_list[0]['widget'].worker_thread.quit()
-            self.menu_list[0]['widget'].worker_thread.wait()
+            self.menu_list[0]["widget"].worker_thread.quit()
+            self.menu_list[0]["widget"].worker_thread.wait()
             event.accept()

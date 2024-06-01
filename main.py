@@ -1,16 +1,18 @@
 from sys import exit
-from PySide6.QtWidgets import QApplication, QSplashScreen
-from PySide6.QtGui import QPixmap, QIcon
+
 from PySide6.QtCore import QSize
+from PySide6.QtGui import QPixmap, QIcon
+from PySide6.QtWidgets import QApplication, QSplashScreen
+
 from gui.main_window import MainWindow
 
+if __name__ == "__main__":
 
-if __name__ == '__main__':
     # Создание приложения
     app = QApplication([])
 
     # Установка и показ splash screen
-    splash = QSplashScreen(QPixmap('./resources/icons/deer.svg'))
+    splash = QSplashScreen(QPixmap("./resources/icons/deer.svg"))
     splash.show()
 
     # Установка стиля элементов

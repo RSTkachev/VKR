@@ -70,7 +70,7 @@ QListWidget,
     border: none;
 }
 
-#btn_upload {
+#btn_process {
     background-color: #FFDB5B;
     border-radius: 12px;
     height: 24px;
@@ -146,7 +146,7 @@ QListWidget,
     font-family: Open Sans;
 }
 
-#btn_upload:hover,
+#btn_process:hover,
 #loading_button:hover,
 #saving_button:hover,
 #btn_previous:hover,
@@ -157,7 +157,7 @@ QListWidget,
     background-color: #ffcf23;
 }
 
-#btn_upload:pressed,
+#btn_process:pressed,
 #loading_button:pressed,
 #saving_button:pressed,
 #btn_previous:pressed,
