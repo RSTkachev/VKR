@@ -8,14 +8,15 @@ from gui.statistic_window import StatisticWidget
 from gui.info_window import InfoWidget
 
 
+# Окно
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         # Инициализация контейнера для UI
         self.ui = UiMainWindow(self)
 
-        # Initialize UI elements
+        # Создание графического интерфейса
         self.title_label = self.ui.title_label
         self.title_label.hide()
 
@@ -34,6 +35,7 @@ class MainWindow(QMainWindow):
 
         self.main_content = self.ui.stackedWidget
 
+        # Страницы приложения
         self.menu_list = [
             {
                 'name': 'Главная страница',
@@ -56,7 +58,8 @@ class MainWindow(QMainWindow):
         self.init_stackwidget()
         self.init_single_slot()
 
-    def init_single_slot(self):
+    # Настройка бокового меню
+    def init_single_slot(self) -> None:
         self.menu_btn.toggled['bool'].connect(self.side_menu.setHidden)
         self.menu_btn.toggled['bool'].connect(self.title_label.setHidden)
         self.menu_btn.toggled['bool'].connect(self.side_menu_collapsed.setVisible)
@@ -71,9 +74,8 @@ class MainWindow(QMainWindow):
         self.side_menu.setIconSize(QSize(24, 24))
         self.side_menu_collapsed.setIconSize(QSize(24, 24))
 
-    def init_list_widget(self):
-        self.side_menu_collapsed.clear()
-        self.side_menu.clear()
+    # Создание элементов бокового меню
+    def init_list_widget(self) -> None:
 
         for menu in self.menu_list:
             item = QListWidgetItem()
@@ -91,23 +93,31 @@ class MainWindow(QMainWindow):
             self.side_menu.addItem(item_new)
             self.side_menu.setCurrentRow(0)
 
-    def init_stackwidget(self):
+    # Создание страниц
+    def init_stackwidget(self) -> None:
         for menu in self.menu_list:
             new_page = menu.get('widget')
             self.main_content.addWidget(new_page)
 
+    # Закрытие приложения
     def closeEvent(self, event: QCloseEvent) -> None:
-        if not self.menu_list[0]['widget'].worker.is_working:
-            self.menu_list[0]['widget'].worker_thread.quit()
-            self.menu_list[0]['widget'].worker_thread.wait()
-            event.accept()
-        else:
+        # Если активна детекция
+        if self.menu_list[0]['widget'].worker.is_working:
+            # Сообщение о работающей детекции
             button = QMessageBox.question(self, "Закрытие приложения", "Вы действительно хотите прервать обработку?")
 
+            # Завершение работы потока и закрытие приложения
             if button == QMessageBox.StandardButton.Yes:
                 self.menu_list[0]['widget'].worker.is_working = False
                 self.menu_list[0]['widget'].worker_thread.quit()
                 self.menu_list[0]['widget'].worker_thread.wait()
                 event.accept()
+            # Не закрывать приложение
             else:
                 event.ignore()
+
+        # Завершение работы потока и закрытие приложения
+        else:
+            self.menu_list[0]['widget'].worker_thread.quit()
+            self.menu_list[0]['widget'].worker_thread.wait()
+            event.accept()

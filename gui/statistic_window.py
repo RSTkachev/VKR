@@ -6,17 +6,23 @@ from PySide6.QtWidgets import QWidget, QLabel, QPushButton, QGridLayout
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QIcon
 
-from processing.plot_creator import plot_chart
+from processing.plot_creator import PlotCreator
 
 
+# Страница статистики
 class StatisticWidget(QWidget):
+    # Переменные для хранения данных для реализации графов
     statistic_file = None
     cnt_detections = 0
     current_detection = 0
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
+        # Класс-отрисовщик графов
+        self.plotter = PlotCreator()
+
+        # Создание интерфеса
         self.refresh_button = QPushButton(
             icon=QIcon('./resources/icons/refresh-cw.svg'),
             text=' Обновить',
@@ -55,10 +61,6 @@ class StatisticWidget(QWidget):
         self.chart = QLabel()
         self.chart.setObjectName(u'chart')
         self.chart.setVisible(False)
-
-        if exists('./resources/statistic.csv'):
-            self.statistic_file = pd.read_csv('./resources/statistic.csv')
-            self.cnt_detections = self.statistic_file.shape[0]
 
         layout = QGridLayout()
         layout.setContentsMargins(60, 40, 60, 40)
@@ -109,57 +111,88 @@ class StatisticWidget(QWidget):
 
         self.setLayout(layout)
 
+        # Попытка открытия файла со статистикой
+        if exists('./resources/statistic.csv'):
+            self.statistic_file = pd.read_csv('./resources/statistic.csv')
+            # Количество выполненных детекций
+            self.cnt_detections = self.statistic_file.shape[0]
 
+        # Если файл со статистикой существует и непустой
         if self.cnt_detections > 0:
+            # Обновление графического интерфейса
             self.chart_text.setVisible(False)
             self.chart.setVisible(True)
             self.button_clear.setVisible(True)
+            # Установка графа
             self.set_plot()
+            # Обновление графического интерфейса
             if self.cnt_detections > 1:
                 self.button_next.setVisible(True)
 
-    def load_previous_chart(self):
+    # Переход к предыдущему графу
+    def load_previous_chart(self) -> None:
+        # Уменьшение номера детекции
         self.current_detection -= 1
+        # Обновление графического интерфейса
         if self.current_detection == 0:
             self.button_previous.setVisible(False)
         if self.current_detection < self.cnt_detections - 1:
             self.button_next.setVisible(True)
+        # Установка графа
         self.set_plot()
 
-    def load_next_chart(self):
+    # Переход к следующему графу
+    def load_next_chart(self) -> None:
+        # Увеличение номера детекции
         self.current_detection += 1
+        # Обновление графического интерфейса
         if self.current_detection == self.cnt_detections - 1:
             self.button_next.setVisible(False)
         if self.current_detection > 0:
             self.button_previous.setVisible(True)
+        # Установка графа
         self.set_plot()
 
-    def refresh_detections(self):
+    # Обновление статистики из файла
+    def refresh_detections(self) -> None:
+        # Попытка чтения файла
         if exists('./resources/statistic.csv'):
             self.statistic_file = pd.read_csv('./resources/statistic.csv')
+            # Новое количество выполненных детекций
             self.cnt_detections = self.statistic_file.shape[0]
 
+            # Обновление графического интерфейса
             if self.current_detection < self.cnt_detections - 1:
                 self.button_next.setVisible(True)
 
+            # Если имеются данные статистики
             if self.cnt_detections:
                 self.chart_text.setVisible(False)
                 self.chart.setVisible(True)
                 self.button_clear.setVisible(True)
+                # Установка графа
                 self.set_plot()
 
-    def clear_statistic(self):
+    # Удаление файла статистики
+    def clear_statistic(self) -> None:
+        # Удаление файла
         if exists('./resources/statistic.csv'):
             remove('./resources/statistic.csv')
+        # Обновление графического интерфейса
         self.button_previous.setVisible(False)
         self.button_next.setVisible(False)
         self.chart.setVisible(False)
         self.chart_text.setVisible(True)
         self.button_clear.setVisible(False)
+        # Обнуление данных по детекциям
         self.current_detection = 0
         self.cnt_detections = 0
 
-    def set_plot(self):
+    # Установка графа
+    def set_plot(self) -> None:
+        # Строка для построения графа
         row = self.statistic_file.iloc[self.current_detection]
-        plot_chart(row)
+        # Построение графа
+        self.plotter.plot_chart(row)
+        # Установка графа
         self.chart.setPixmap(QPixmap('./resources/plot.jpg'))

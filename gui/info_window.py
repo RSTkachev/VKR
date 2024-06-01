@@ -5,10 +5,12 @@ from PySide6.QtGui import QPixmap, QFont
 import resources.strings
 
 
+# Информационная страница
 class InfoWidget(QWidget):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
+        # Создание графического интерфеса
         app_icon = QLabel()
         app_icon.setPixmap(QPixmap(resources.strings.label_path))
         app_icon.setMaximumSize(QSize(200, 200))

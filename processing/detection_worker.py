@@ -1,22 +1,23 @@
-# Импорт библиотек
 from os import walk
 from os.path import exists
 from shutil import copy2
 from pathlib import Path
 
-from filetype import is_image, is_video
 import cv2
 import pandas as pd
 from torch.cuda import device_count, get_device_name, empty_cache
 
 from ultralytics import YOLO
+from ultralytics.data.utils import IMG_FORMATS, VID_FORMATS
+from ultralytics.engine.results import Results
 from PySide6.QtGui import Qt
 from PySide6.QtCore import QThread, Signal, Slot
+from typing import Iterator
 
 
-# Класс-обработчик
 class DetectionWorker(QThread):
-    # Модель детектора
+    """Класс детектора"""
+
     model = None
 
     # Сигналы для изменения интерфейса
@@ -28,51 +29,108 @@ class DetectionWorker(QThread):
     # Переменная для досрочного завершения обработки
     is_working = False
 
-    # Обарботка
-    @Slot(str, str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
-    def make_prediction(self, device, source, destination, confidence, to_save_image, to_save_statistic, to_group_images):
+    @Slot(str)
+    def load_model(self, model_name: str) -> None:
+        """
+        Загрузка детектора.
+
+        Args:
+            model_name - название файла модели
+        """
+        if not self.model:
+            self.model = YOLO(model_name, verbose=False)
+
+    @Slot(str)
+    def set_device(self, device):
+        """
+        Установка девайса обработки
+
+        Args:
+            device - строка, кодирующая устройство
+        """
+
+        # Количество устройств с поддержкой CUDA
+        dev_cnt = device_count()
+
+        # Словарь устройств
+        devices = {'CPU': 'cpu'}
+        # Заполнение словаря устройств устройствами с поддержкой CUDA
+        for device_index in range(dev_cnt):
+            devices[get_device_name(device_index)] = device_index
+
+        # Перенос модели на устройство выполнения детекции
+        self.model.to(devices[device])
+        # Очистка памяти, занимаемой моделью
+        empty_cache()
+
+    @Slot(str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
+    def make_prediction(
+            self,
+            source: str,
+            destination: str,
+            confidence: float,
+            to_save_image: Qt.CheckState,
+            to_save_statistic: Qt.CheckState,
+            to_group_images: Qt.CheckState,
+    ) -> None:
+        """
+        Выполнение детекции
+
+        Args:
+            source - путь до директории с материалами
+            destination - путь до директории сохранения
+            confidence - порог уверенности
+            to_save_image - выполнять ли сохранение материалов с отметками детекций
+            to_save_statistic - выполнять сохранение внешней статистики в выбранную пользователем директорию
+            to_group_image - группировать изображения по классам обнаруженных животных
+        """
+
+        # Установка переменной досрочного завершения
         self.is_working = True
-        # Сигналы для обновления элементов интерфейса
+
+        # Изменение состояния графического интерфейса
         self.set_progress_bar_value.emit(0)
         self.set_enable_state.emit()
         self.set_abort_button_state.emit(False)
 
-        if not self.model:
-            self.model = YOLO('../resources/model_ru.pt', verbose=False)
-
-        dev_cnt = device_count()
-        devices = {'CPU': 'cpu'}
-        for device_index in range(dev_cnt):
-            devices[get_device_name(device_index)] = device_index
-
-        self.model.to(devices[device])
-        empty_cache()
-
-        all_classes = self.model.names
+        # Индексы и названия классов детекции
+        classes = self.model.names
+        class_indexes = self.model.names.keys()
+        class_names = self.model.names.values()
 
         # Количество животных на детекциях
-        animal_count = {x: 0 for x in all_classes.keys()}
+        animal_count = {x: 0 for x in class_indexes}
 
-        columns = ['full_path', 'filename']
-        for class_name in all_classes.values():
-            columns.append(class_name)
+        # Названия колонок статистики
+        columns = ['full_path', 'filename'].extend(class_names)
+
+        # Количество изображений без детекции
         cnt_without_detection = 0
 
+        # Если файл статистики существует, дополнить
+        # Если файл статистики отсутствует, создать
         if exists(f'{destination}/detection/statistic.csv'):
             full_statistic = pd.read_csv(f'{destination}/detection/statistic.csv')
         else:
             full_statistic = pd.DataFrame(columns=columns)
 
+        # Количество строк статистики для дополнения статистики новыми значениями
         statistic_size = full_statistic.shape[0]
 
-        # Список валидных файлов
+        # Список файлов, являющихся изображениями или видеоматериалами
         files = []
         for folder, _, filenames in walk(source):
             for filename in filenames:
-                if is_image(f'{folder}/{filename}') or is_video(f'{folder}/{filename}'):
+                filename_splitted = filename.split('.')
+                if len(filename_splitted) < 2:
+                    pass
+                elif (
+                        filename_splitted[-1].lower() in IMG_FORMATS
+                        or filename_splitted[-1].lower() in VID_FORMATS
+                ):
                     files.append(f'{folder}/{filename}')
 
-        # Создание папок для сохранения детектированных изображений
+        # Создание папки для сохранения материалов детекции
         if to_save_image == Qt.CheckState.Checked or to_save_statistic == Qt.CheckState.Checked:
             Path(f'{destination}/detection').mkdir(parents=True, exist_ok=True)
 
@@ -82,103 +140,211 @@ class DetectionWorker(QThread):
                 Path(f'{destination}/detection/{class_name}').mkdir(parents=True, exist_ok=True)
 
         # Количество файлов. Необходимо для обновления progress bar
-        count = len(files)
+        amount = len(files)
+        current_number = 0
 
-        for index in range(0, count):
-            full_statistic.loc[index + statistic_size, 'full_path'] = files[index]
-            full_statistic.loc[index + statistic_size, 'filename'] = files[index].split('/')[-1]
+        for file in files:
+            # Сохранение в файл статистики полного пути и названия файла
+            full_statistic.loc[statistic_size + current_number, 'full_path'] = file
+            full_statistic.loc[statistic_size + current_number, 'filename'] = file.split('/')[-1]
+
+            # Досрочное завершение
             if not self.is_working:
-                self.set_enable_state.emit()
-                self.set_abort_button_state.emit(True)
+                self.shut_down()
                 return
-            # Запуск детекции
-            prediction = self.model.predict(files[index], verbose=False, stream=True, conf=confidence)
 
-            # Сет классов животных, присутствующих на материале
+            # Запуск детекции
+            prediction = self.model.predict(file, verbose=False, stream=True, conf=confidence)
+
+            # Животные, обнаруженные на материале
             detected_objects = set()
 
-            # Если изначальный объект является видео
-            if is_video(files[index]):
+            # Детекция изображения
+            if file.split('.')[-1] in IMG_FORMATS:
+                self.process_image(
+                    prediction.__next__(),
+                    file,
+                    destination,
+                    to_save_image,
+                    to_group_images,
+                    classes,
+                    detected_objects
+                )
 
-                # Если необходимо сохранить видео
-                if to_save_image == Qt.CheckState.Checked:
-                    vid = cv2.VideoCapture(files[index])
-                    height = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
-                    width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
-                    fps = vid.get(cv2.CAP_PROP_FPS)
-
-                    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-                    video = cv2.VideoWriter(
-                        filename=f"{destination}/detection/{files[index]}",
-                        fourcc=fourcc,
-                        fps=fps,
-                        frameSize=(int(width), int(height)),
-                    )
-
-                    for image in prediction:
-                        if not self.is_working:
-                            self.set_enable_state.emit()
-                            self.set_abort_button_state.emit(True)
-                            return
-                        detected_objects.update(image.boxes.cls.tolist())
-                        video.write(image.plot())
-                        video.release()
-
-                else:
-                    for image in prediction:
-                        detected_objects.update(image.boxes.cls.tolist())
-                        if not self.is_working:
-                            self.set_enable_state.emit()
-                            self.set_abort_button_state.emit(True)
-                            return
-                    if to_group_images == Qt.CheckState.Checked:
-                        copy2(files[index], f"{destination}/detection/{files[index].split('/')[-1]}")
-
+            # Детекция видео
             else:
-                image = prediction.__next__()
-                detected_objects.update(item for item in image.boxes.cls.tolist())
+                self.process_video(
+                    prediction,
+                    file,
+                    destination,
+                    to_save_image,
+                    to_group_images,
+                    detected_objects
+                )
 
-                if to_group_images == Qt.CheckState.Checked:
-                    if to_save_image == Qt.CheckState.Checked:
-                        for index_class in detected_objects:
-                            image.save(f'{destination}/detection/{all_classes[index_class]}/{files[index].split("/")[-1]}')
-
-                    else:
-                        for index_class in detected_objects:
-                            copy2(files[index], f'{destination}/detection/{all_classes[index_class]}')
-
-                elif to_save_image == Qt.CheckState.Checked:
-                    image.save(f'{destination}/detection/{files[index].split("/")[-1]}')
-
-            if len(detected_objects) > 0:
+            # Запись статистики
+            if detected_objects:
                 for detected_object in detected_objects:
                     animal_count[detected_object] += 1
-                    full_statistic.loc[index + statistic_size, self.model.names[detected_object]] = 1
+                    full_statistic.loc[statistic_size + current_number, self.model.names[detected_object]] = 1
             else:
                 cnt_without_detection += 1
 
-            progress = int((index + 1) / count * 100)
+            # Обновление progress bar
+            progress = int((current_number + 1) / amount * 100)
             self.set_progress_bar_value.emit(progress)
+            current_number += 1
 
-        self.save_internal_statistic(animal_count, all_classes, cnt_without_detection)
+        # Сохранение внутренней статистики
+        self.save_internal_statistic(animal_count, classes, cnt_without_detection)
 
+        # Сохранение внешней статистики
         if to_save_statistic == Qt.CheckState.Checked:
             full_statistic.to_csv(f'{destination}/detection/statistic.csv', index=False)
 
+        # Обновление графического интерфейса, завершение работы
         self.set_enable_state.emit()
         self.set_abort_button_state.emit(False)
         self.inform_end.emit()
         self.is_working = False
 
-    def save_internal_statistic(self, counts: dict, names: list, without_detection: int):
+    def process_video(
+            self,
+            prediction: Iterator,
+            file: str,
+            destination: str,
+            to_save_image: Qt.CheckState,
+            to_group_images: Qt.CheckState,
+            detected_objects: set,
+    ) -> None:
+        """
+        Выполнение детекции видео
+
+        Args:
+            prediction - итератор для детекции видео
+            file - имя файла
+            destination - директория сохранения
+            to_save_image - выполнять ли сохранение материалов с отметками детекций
+            to_group_image - группировать изображения по классам обнаруженных животных
+            detected_objects - обнаруженные объекты
+        """
+
+        # Если необходимо сохранить видео
+        if to_save_image == Qt.CheckState.Checked:
+            # Получение исходных характеристик видео
+            vid = cv2.VideoCapture(file)
+            height = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
+            fps = vid.get(cv2.CAP_PROP_FPS)
+
+            # Создание объекта для записи видео
+            fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+            video = cv2.VideoWriter(
+                filename=f"{destination}/detection/{'.'.join(file.split('/')[-1].split('.')[:-1])}.avi",
+                fourcc=fourcc,
+                fps=fps,
+                frameSize=(int(width), int(height)),
+            )
+
+            # Детекция кадра видео
+            for image in prediction:
+                # Досрочное завершение
+                if not self.is_working:
+                    self.shut_down()
+                    return
+                # Добавление обнаруженных объектов
+                detected_objects.update(image.boxes.cls.tolist())
+                # Запись текущего кадра
+                video.write(image.plot())
+
+            # Сохранение видео
+            video.release()
+
+        else:
+            # Детекция кадра видео
+            for image in prediction:
+                # Добавление обнаруженных объектов
+                detected_objects.update(image.boxes.cls.tolist())
+                # Досрочное завершение
+                if not self.is_working:
+                    self.shut_down()
+                    return
+            # Копирование исходного видео
+            if to_group_images == Qt.CheckState.Checked:
+                copy2(file, f"{destination}/detection/{file.split('/')[-1]}")
+
+    def process_image(
+            self,
+            image: Results,
+            file: str,
+            destination: str,
+            to_save_image: Qt.CheckState,
+            to_group_images: Qt.CheckState,
+            all_classes: dict,
+            detected_objects: set
+    ) -> None:
+        """
+        Выполнение детекции изображения
+
+        Args:
+            image - результаты детекции
+            file - имя файла
+            destination - директория сохранения
+            to_save_image - выполнять ли сохранение материалов с отметками детекций
+            to_group_image - группировать изображения по классам обнаруженных животных
+            all_classes - детектируемые классы
+            detected_objects - обнаруженные объекты
+        """
+
+        # Добавление обнаруженных объектов
+        detected_objects.update(item for item in image.boxes.cls.tolist())
+
+        # Сохранение с группировкой
+        if to_group_images == Qt.CheckState.Checked:
+            # Сохранение результата
+            if to_save_image == Qt.CheckState.Checked:
+                for index_class in detected_objects:
+                    image.save(f'{destination}/detection/{all_classes[index_class]}/{file.split("/")[-1]}')
+
+            # Сохранение исходного изображения
+            else:
+                for index_class in detected_objects:
+                    copy2(file, f'{destination}/detection/{all_classes[index_class]}')
+
+        # Сохранение результата без группировки
+        elif to_save_image == Qt.CheckState.Checked:
+            image.save(f'{destination}/detection/{file.split("/")[-1]}')
+
+    def save_internal_statistic(self, counts: dict, names: list, without_detection: int) -> None:
+
+        """
+        Сохранение внутренней статистики
+
+        Args:
+            counts - количество животных каждого класса
+            names - классы, детектируемые моделью
+            without_detection - количество изображений без детекции
+        """
+
+        # Создание новой статистики или чтение существующей
         if exists('./resources/statistic.csv'):
             statistic = pd.read_csv('./resources/statistic.csv')
         else:
             statistic = pd.DataFrame()
 
+        # Размер статистики. Необходимо для дополнения статистики
         size_of_statistic = statistic.shape[0]
+        # Запись количества животных каждого класса
         for key, value in zip(counts.keys(), counts.values()):
             statistic.loc[size_of_statistic, names[key]] = value
+        # Запись количества изображений без детекции
         statistic.loc[size_of_statistic, 'Без детекции'] = without_detection
+        # Заполнение пропусков нулями
         statistic.fillna(0, inplace=True)
+        # Сохранение статистики в файл
         statistic.to_csv('./resources/statistic.csv', index=False)
+
+    def shut_down(self):
+        """Обновление графического интерфеса по завершении работы"""
+        self.set_enable_state.emit()
+        self.set_abort_button_state.emit(True)

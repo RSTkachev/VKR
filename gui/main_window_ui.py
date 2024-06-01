@@ -1,10 +1,16 @@
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QListWidget, QPushButton, QStackedWidget, QWidget
+from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QListWidget, QPushButton, QStackedWidget, QWidget, QMainWindow
 from PySide6.QtGui import QPixmap, QIcon
 
 
+# Интерфейс окна
 class UiMainWindow:
-    def __init__(self, main_window):
+
+    # Инициализация объекта
+    # Входные параметры
+    # main_window - родительский элемент
+    def __init__(self, main_window: QMainWindow):
+        # Создание интерфеса
         self.central_widget = QWidget(main_window)
 
         self.gridLayout = QGridLayout(self.central_widget)

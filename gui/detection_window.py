@@ -1,4 +1,3 @@
-# Импорт библиотек
 from os import path
 
 from PySide6.QtWidgets import (
@@ -12,10 +11,12 @@ from torch.cuda import device_count, get_device_name
 from processing.detection_worker import DetectionWorker
 
 
-# Класс окна интерфейса
+# Страница детектирования
 class DetectionWidget(QWidget):
     # Сигнал потоку-обработчику
-    prediction_signal = Signal(str, str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
+    load_model = Signal(str)
+    set_device = Signal(str)
+    prediction_signal = Signal(str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
 
     def __init__(self):
         super().__init__()
@@ -27,9 +28,12 @@ class DetectionWidget(QWidget):
         self.worker.set_abort_button_state.connect(self.upload_abort_button_state)
         self.worker.set_progress_bar_value.connect(self.upload_progress_bar_value)
         self.worker.inform_end.connect(self.inform_about_end_processing)
+        self.load_model.connect(self.worker.load_model)
+        self.set_device.connect(self.worker.set_device)
         self.prediction_signal.connect(self.worker.make_prediction)
         self.worker.moveToThread(self.worker_thread)
         self.worker_thread.start()
+        self.load_model.emit('./resources/model_ru.pt')
 
         # Элементы окна
         self.btn_upload = QPushButton()
@@ -211,7 +215,8 @@ class DetectionWidget(QWidget):
             dialog.warning(self, 'Обработка невозможна!', 'Путь директории сохранения некорректен', QMessageBox.StandardButton.Ok)
             return
 
-        self.prediction_signal.emit(device, source, destination, confidence, save_image, save_statistic, group_images)
+        self.set_device.emit(device)
+        self.prediction_signal.emit(source, destination, confidence, save_image, save_statistic, group_images)
 
     def abort_button_clicked(self):
         self.worker.is_working = False
