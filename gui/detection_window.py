@@ -1,33 +1,25 @@
 from os import path
 
 from PySide6.QtCore import QThread, Signal, Slot
-from PySide6.QtGui import QIcon, Qt
+from PySide6.QtGui import Qt
 from PySide6.QtWidgets import (
-    QWidget,
     QFileDialog,
-    QPushButton,
-    QGridLayout,
-    QProgressBar,
-    QLabel,
-    QComboBox,
-    QLineEdit,
-    QDoubleSpinBox,
-    QCheckBox,
     QMessageBox,
 )
 from torch.cuda import device_count, get_device_name
 
+from gui.detection_window_ui import DetectionWidgetUi
 from processing.detection_worker import DetectionWorker
 
 
-class DetectionWidget(QWidget):
+class DetectionWidget(DetectionWidgetUi):
     """Страница детектирования"""
 
     # Сигнал потоку-обработчику
-    load_model = Signal(str)
-    set_device = Signal(str)
-    prediction_signal = Signal(
-        str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState
+    __load_model = Signal(str)
+    __set_device = Signal(str)
+    __prediction_signal = Signal(
+        str, Qt.CheckState, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState
     )
 
     def __init__(self):
@@ -35,263 +27,109 @@ class DetectionWidget(QWidget):
 
         super().__init__()
 
-        # Определение обработчика
-        self.worker = DetectionWorker()
-        self.worker_thread = QThread()
-        self.worker.set_enable_state.connect(self.btn_process_set_enable_state)
-        self.worker.btn_abort_upload_state.connect(self.btn_abort_upload_state)
-        self.worker.set_progress_bar_value.connect(self.upload_progress_bar_value)
-        self.worker.inform_end.connect(self.inform_about_end_processing)
-        self.load_model.connect(self.worker.load_model)
-        self.set_device.connect(self.worker.set_device)
-        self.prediction_signal.connect(self.worker.make_prediction)
-        self.worker.moveToThread(self.worker_thread)
-        self.worker_thread.start()
-        self.load_model.emit("./resources/model_ru.pt")
-
-        # Элементы окна
-        self.btn_process = QPushButton()
-        self.btn_process.setText("Выполнить детекцию")
-        self.btn_process.clicked.connect(self.process)
-        self.btn_process.setObjectName("btn_process")
-        self.btn_process.setMaximumWidth(200)
-        self.btn_process.setToolTip("Выполнить детекцию на выбранных материалах")
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setObjectName("progress_bar")
-
-        label_global_settings = QLabel()
-        label_global_settings.setText("Глобальные настройки")
-        label_global_settings.setObjectName("global_settings")
-
-        label_device_text = QLabel()
-        label_device_text.setObjectName("device_text")
-        label_device_text.setText("Устройство выполнения детекции")
-        label_device_text.setToolTip(
-            "Параметр определяет, на каком устройстве будет производиться детекция"
-        )
+        self._btn_process.clicked.connect(self.__process)
 
         dev_cnt = device_count()
         devices = ["CPU"]
         for device_index in range(dev_cnt):
             devices.append(get_device_name(device_index))
 
-        self.device_list = QComboBox()
+        self._checkbox_draw_bbox.setEnabled(False)
+        self._checkbox_group_images.setEnabled(False)
+
+        self._btn_loading_directory.clicked.connect(self.__chose_load_directory)
+        self._btn_saving_directory.clicked.connect(self.__chose_save_directory)
+        self._checkbox_save_images.stateChanged.connect(
+            self.__checkbox_saving_images_state
+        )
+        self._checkbox_draw_bbox.stateChanged.connect(self.__checkbox_check_state)
+        self._checkbox_group_images.stateChanged.connect(self.__checkbox_check_state)
+        self._checkbox_save_statistic.stateChanged.connect(
+            self.__checkbox_save_statistic_state
+        )
+
         for device in devices:
-            self.device_list.addItem(device)
+            self._device_list.addItem(device)
 
-        label_loading_text = QLabel()
-        label_loading_text.setObjectName("loading_text")
-        label_loading_text.setText("Директория загрузки")
-        label_loading_text.setToolTip(
-            "Параметр определяет расположение файлов для детекции"
-        )
+        self._btn_abort.clicked.connect(self.stop_worker)
 
-        self.line_edit_loading_path = QLineEdit()
+        # Определение обработчика
+        self.__worker = DetectionWorker()
+        self.__worker_thread = QThread()
+        self.__worker.set_enable_state.connect(self.__btn_process_set_enable_state)
+        self.__worker.btn_abort_upload_state.connect(self.__btn_abort_upload_state)
+        self.__worker.set_progress_bar_value.connect(self.__upload_progress_bar_value)
+        self.__worker.inform_end.connect(self.__inform_about_end_processing)
+        self.__load_model.connect(self.__worker.load_model)
+        self.__set_device.connect(self.__worker.set_device)
+        self.__prediction_signal.connect(self.__worker.make_prediction)
+        self.__worker.moveToThread(self.__worker_thread)
+        self.__worker_thread.start()
+        self.__load_model.emit("./resources/model_ru.pt")
 
-        self.btn_loading_directory = QPushButton()
-        self.btn_loading_directory.setText("")
-        self.btn_loading_directory.setIcon(QIcon("resources/icons/folder.svg"))
-        self.btn_loading_directory.setObjectName("loading_button")
-        self.btn_loading_directory.clicked.connect(self.chose_load_directory)
-
-        label_saving_text = QLabel()
-        label_saving_text.setObjectName("saving_text")
-        label_saving_text.setText("Директория сохранения")
-        label_saving_text.setToolTip("Параметр определяет директорию сохранения")
-
-        self.line_edit_saving_path = QLineEdit()
-
-        self.btn_saving_directory = QPushButton()
-        self.btn_saving_directory.setText("")
-        self.btn_saving_directory.setIcon(QIcon("resources/icons/folder.svg"))
-        self.btn_saving_directory.setObjectName("saving_button")
-        self.btn_saving_directory.clicked.connect(self.chose_save_directory)
-
-        label_confidence_threshold = QLabel()
-        label_confidence_threshold.setObjectName("confidence_threshold")
-        label_confidence_threshold.setText("Порог уверенности")
-        label_confidence_threshold.setToolTip(
-            "Параметр определяет степень уверенности, с которой принимается детекция"
-        )
-
-        self.d_spin_box_confidence_value = QDoubleSpinBox()
-        self.d_spin_box_confidence_value.setValue(0.5)
-        self.d_spin_box_confidence_value.setMinimum(0)
-        self.d_spin_box_confidence_value.setMaximum(1)
-        self.d_spin_box_confidence_value.setSingleStep(0.05)
-
-        label_saving_settings = QLabel()
-        label_saving_settings.setObjectName("saving_settings")
-        label_saving_settings.setText("Настройки сохранения")
-
-        self.checkbox_save_images = QCheckBox()
-        self.checkbox_save_images.setCheckState(Qt.CheckState.Checked)
-
-        label_save_images_text = QLabel()
-        label_save_images_text.setText("Сохранять изображения с отметками детекций")
-        label_save_images_text.setObjectName("save_image_text")
-        label_save_images_text.setToolTip(
-            "Параметр определяет, сохранять ли изображения с отметками детекций. Требует указания директории сохранения"
-        )
-
-        self.checkbox_save_statistic = QCheckBox()
-        self.checkbox_save_statistic.setCheckState(Qt.CheckState.Checked)
-
-        label_save_statistic_text = QLabel()
-        label_save_statistic_text.setText("Сохранять статистику")
-        label_save_statistic_text.setObjectName("save_statistic_text")
-        label_save_statistic_text.setToolTip(
-            "Параметр определяет, необходимо ли сохранять сохранять статистику по детекциям. Требует указания директории сохранения"
-        )
-
-        self.checkbox_group_images = QCheckBox()
-        self.checkbox_group_images.setCheckState(Qt.CheckState.Checked)
-
-        label_group_images_text = QLabel()
-        label_group_images_text.setText("Группировать изображения по классам")
-        label_group_images_text.setObjectName("group_images_text")
-        label_group_images_text.setToolTip(
-            "Параметр определяет, необходимо ли группировать изображения по классам. Требует указания директории сохранения"
-        )
-
-        self.btn_abort = QPushButton()
-        self.btn_abort.setText("")
-        self.btn_abort.setIcon(QIcon("./resources/icons/x.svg"))
-        self.btn_abort.setObjectName("abort_button")
-        self.btn_abort.clicked.connect(self.btn_abort_clicked)
-        self.btn_abort.setEnabled(False)
-        self.btn_abort.setToolTip("Прервать выполнение детекции")
-
-        # Определение и настройка шаблона
-        layout = QGridLayout()
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-
-        layout.addWidget(
-            label_global_settings, 0, 0, 1, 3, Qt.AlignmentFlag.AlignCenter
-        )
-        layout.addWidget(label_device_text, 1, 0, 1, 1, Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(self.device_list, 1, 1, 1, 1, Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(label_loading_text, 2, 0, 1, 1, Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(
-            self.line_edit_loading_path, 2, 1, 1, 1, Qt.AlignmentFlag.AlignVCenter
-        )
-        layout.addWidget(
-            self.btn_loading_directory,
-            2,
-            2,
-            1,
-            1,
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-        )
-        layout.addWidget(label_saving_text, 3, 0, 1, 1, Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(
-            self.line_edit_saving_path, 3, 1, 1, 1, Qt.AlignmentFlag.AlignVCenter
-        )
-        layout.addWidget(
-            self.btn_saving_directory,
-            3,
-            2,
-            1,
-            1,
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-        )
-        layout.addWidget(
-            label_confidence_threshold, 4, 0, 1, 1, Qt.AlignmentFlag.AlignVCenter
-        )
-        layout.addWidget(
-            self.d_spin_box_confidence_value,
-            4,
-            1,
-            1,
-            1,
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-        )
-
-        layout.addWidget(
-            label_saving_settings, 0, 3, 1, 2, Qt.AlignmentFlag.AlignCenter
-        )
-        layout.addWidget(
-            self.checkbox_save_images,
-            1,
-            3,
-            1,
-            1,
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
-        )
-        layout.addWidget(
-            label_save_images_text, 1, 4, 1, 2, Qt.AlignmentFlag.AlignVCenter
-        )
-        layout.addWidget(
-            self.checkbox_save_statistic,
-            2,
-            3,
-            1,
-            1,
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
-        )
-        layout.addWidget(
-            label_save_statistic_text, 2, 4, 1, 2, Qt.AlignmentFlag.AlignVCenter
-        )
-        layout.addWidget(
-            self.checkbox_group_images,
-            3,
-            3,
-            1,
-            1,
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
-        )
-        layout.addWidget(
-            label_group_images_text, 3, 4, 1, 2, Qt.AlignmentFlag.AlignVCenter
-        )
-
-        layout.addWidget(self.btn_process, 6, 0, 1, 1, Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(self.progress_bar, 6, 1, 1, 4, Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(
-            self.btn_abort,
-            6,
-            5,
-            1,
-            1,
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
-        )
-
-        layout.setContentsMargins(60, 40, 60, 40)
-        layout.setVerticalSpacing(20)
-        layout.setHorizontalSpacing(10)
-
-        layout.setColumnStretch(0, 16)
-        layout.setColumnStretch(1, 16)
-        layout.setColumnStretch(2, 8)
-        layout.setColumnStretch(3, 8)
-        layout.setColumnStretch(4, 32)
-        layout.setColumnStretch(5, 1)
-
-        self.setLayout(layout)
-
-    def chose_load_directory(self) -> None:
+    def __chose_load_directory(self) -> None:
         """Установка директории-источника"""
 
         directory = QFileDialog.getExistingDirectory()
-        self.line_edit_loading_path.setText(directory)
+        self._line_edit_loading_path.setText(directory)
 
-    def chose_save_directory(self):
+    def __checkbox_saving_images_state(self):
+        """Проверка состояния чекбокса сохранения материалов"""
+
+        if self._checkbox_save_images.checkState() == Qt.CheckState.Checked:
+            self._checkbox_draw_bbox.setEnabled(True)
+            self._checkbox_group_images.setEnabled(True)
+            self._checkbox_draw_bbox.setCheckState(Qt.CheckState.Checked)
+            self._checkbox_group_images.setCheckState(Qt.CheckState.Checked)
+            self._line_edit_saving_path.setEnabled(True)
+            self._btn_saving_directory.setEnabled(True)
+            self._line_edit_saving_path.setEnabled(True)
+            self._btn_saving_directory.setEnabled(True)
+        else:
+            self._checkbox_draw_bbox.setEnabled(False)
+            self._checkbox_group_images.setEnabled(False)
+            self._checkbox_draw_bbox.setCheckState(Qt.CheckState.Unchecked)
+            self._checkbox_group_images.setCheckState(Qt.CheckState.Unchecked)
+            if self._checkbox_save_statistic.checkState() == Qt.CheckState.Unchecked:
+                self._line_edit_saving_path.setEnabled(False)
+                self._btn_saving_directory.setEnabled(False)
+
+    def __checkbox_check_state(self):
+        """Проверка состояния чекбоксов"""
+
+        if (
+            self._checkbox_draw_bbox.checkState() == Qt.CheckState.Unchecked
+            and self._checkbox_group_images.checkState() == Qt.CheckState.Unchecked
+        ):
+            self._checkbox_save_images.setCheckState(Qt.CheckState.Unchecked)
+
+    def __checkbox_save_statistic_state(self):
+        """Проверка состояния чекбокса сохранения статистики"""
+
+        if self._checkbox_save_statistic.checkState() == Qt.CheckState.Checked:
+            self._line_edit_saving_path.setEnabled(True)
+            self._btn_saving_directory.setEnabled(True)
+        elif self._checkbox_save_images.checkState() == Qt.CheckState.Unchecked:
+            self._line_edit_saving_path.setEnabled(False)
+            self._btn_saving_directory.setEnabled(False)
+
+    def __chose_save_directory(self):
         """Установка директории-назначения"""
 
         directory = QFileDialog.getExistingDirectory()
-        self.line_edit_saving_path.setText(directory)
+        self._line_edit_saving_path.setText(directory)
 
-    def process(self):
+    def __process(self):
         """Запуск обработки"""
 
-        device = self.device_list.currentText()
-        source = self.line_edit_loading_path.text()
-        destination = self.line_edit_saving_path.text()
-        confidence = self.d_spin_box_confidence_value.value()
-        save_image = self.checkbox_save_images.checkState()
-        save_statistic = self.checkbox_save_statistic.checkState()
-        group_images = self.checkbox_group_images.checkState()
+        device = self._device_list.currentText()
+        source = self._line_edit_loading_path.text()
+        is_find_subdirectories = self._checkbox_find_subdirectories.checkState()
+        destination = self._line_edit_saving_path.text()
+        confidence = self._d_spin_box_confidence_value.value()
+        draw_bbox = self._checkbox_draw_bbox.checkState()
+        save_statistic = self._checkbox_save_statistic.checkState()
+        group_images = self._checkbox_group_images.checkState()
         if not source:
             dialog = QMessageBox(self)
             dialog.warning(
@@ -311,7 +149,7 @@ class DetectionWidget(QWidget):
             )
             return
         if not destination and (
-            save_image == Qt.CheckState.Checked
+            draw_bbox == Qt.CheckState.Checked
             or save_statistic == Qt.CheckState.Checked
             or group_images == Qt.CheckState.Checked
         ):
@@ -333,23 +171,47 @@ class DetectionWidget(QWidget):
             )
             return
 
-        self.set_device.emit(device)
-        self.prediction_signal.emit(
-            source, destination, confidence, save_image, save_statistic, group_images
+        self.__set_device.emit(device)
+        self.__prediction_signal.emit(
+            source,
+            is_find_subdirectories,
+            destination,
+            confidence,
+            draw_bbox,
+            save_statistic,
+            group_images,
         )
 
-    def btn_abort_clicked(self):
-        """Аборт обработки"""
-        self.worker.is_working = False
+    def check_worker_state(self):
+        """
+        Проверка состояния потока
+
+        Return:
+            Состояние потока
+        """
+
+        return self.__worker.is_working
+
+    def stop_worker(self):
+        """Остановка потока"""
+
+        self.__worker.is_working = False
+
+    def close_worker(self):
+        """Закрытие потока"""
+
+        self.__worker_thread.quit()
+        self.__worker_thread.wait()
 
     @Slot()
-    def btn_process_set_enable_state(self):
+    def __btn_process_set_enable_state(self) -> None:
         """Обновление состояния кнопки загрузки"""
-        is_enable = self.btn_process.isEnabled()
-        self.btn_process.setEnabled(not is_enable)
+
+        is_enable = self._btn_process.isEnabled()
+        self._btn_process.setEnabled(not is_enable)
 
     @Slot(bool)
-    def btn_abort_upload_state(self, is_abort: bool) -> None:
+    def __btn_abort_upload_state(self, is_abort: bool) -> None:
         """
         Обновление состояния кнопки аборта детекции
 
@@ -357,29 +219,29 @@ class DetectionWidget(QWidget):
             is_abort - была ли нажата кнопка аборта
         """
 
-        is_enable = self.btn_abort.isEnabled()
-        self.btn_abort.setEnabled(not is_enable)
+        is_enable = self._btn_abort.isEnabled()
+        self._btn_abort.setEnabled(not is_enable)
         if is_abort:
-            self.progress_bar.setStyleSheet(
+            self._progress_bar.setStyleSheet(
                 "QProgressBar:chunk" "{" "background-color : #E3887A;" "}"
             )
         else:
-            self.progress_bar.setStyleSheet(
+            self._progress_bar.setStyleSheet(
                 "QProgressBar:chunk" "{" "background-color:rgb(90, 168, 114);" "}"
             )
 
     @Slot(int)
-    def upload_progress_bar_value(self, progress: int) -> None:
+    def __upload_progress_bar_value(self, progress: int) -> None:
         """
         Обновление значения progress bar
 
         Args:
             progress - прогресс выполнения
         """
-        self.progress_bar.setValue(progress)
+        self._progress_bar.setValue(progress)
 
     @Slot()
-    def inform_about_end_processing(self) -> None:
+    def __inform_about_end_processing(self) -> None:
         """Информирование пользователя о конце обработки"""
 
         QMessageBox.information(

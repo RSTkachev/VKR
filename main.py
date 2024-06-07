@@ -32,7 +32,7 @@ if __name__ == "__main__":
     window.setMinimumSize(QSize(1280, 760))
 
     # Открытие приложения и завершение показа splash screen
-    window.showMaximized()
+    window.show()
     splash.finish(window)
 
     # Запуск выполнения

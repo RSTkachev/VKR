@@ -1,4 +1,4 @@
-from os import walk
+from os import walk, listdir
 from os.path import exists
 from pathlib import Path
 from shutil import copy2
@@ -29,6 +29,11 @@ class DetectionWorker(QThread):
     # Переменная для досрочного завершения обработки
     is_working = False
 
+    # Индексы и названия классов детекции
+    classes = None
+    class_indexes = None
+    class_names = None
+
     @Slot(str)
     def load_model(self, model_name: str) -> None:
         """
@@ -40,8 +45,13 @@ class DetectionWorker(QThread):
         if not self.model:
             self.model = YOLO(model_name, verbose=False)
 
+        # Индексы и названия классов детекции
+        self.classes = self.model.names
+        self.class_indexes = self.model.names.keys()
+        self.class_names = self.model.names.values()
+
     @Slot(str)
-    def set_device(self, device):
+    def set_device(self, device: str):
         """
         Установка девайса обработки
 
@@ -63,10 +73,11 @@ class DetectionWorker(QThread):
         # Очистка памяти, занимаемой моделью
         empty_cache()
 
-    @Slot(str, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
+    @Slot(str, Qt.CheckState, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState)
     def make_prediction(
         self,
         source: str,
+        is_find_subdirectories: Qt.CheckState,
         destination: str,
         confidence: float,
         to_save_image: Qt.CheckState,
@@ -78,6 +89,7 @@ class DetectionWorker(QThread):
 
         Args:
             source - путь до директории с материалами
+            is_find_subdirectories - искать материалы для детекции в подкаталогах
             destination - путь до директории сохранения
             confidence - порог уверенности
             to_save_image - выполнять ли сохранение материалов с отметками детекций
@@ -93,16 +105,11 @@ class DetectionWorker(QThread):
         self.set_enable_state.emit()
         self.btn_abort_upload_state.emit(False)
 
-        # Индексы и названия классов детекции
-        classes = self.model.names
-        class_indexes = self.model.names.keys()
-        class_names = self.model.names.values()
-
         # Количество животных на детекциях
-        animal_count = {x: 0 for x in class_indexes}
+        animal_count = {x: 0 for x in self.class_indexes}
 
         # Названия колонок статистики
-        columns = ["full_path", "filename"].extend(class_names)
+        columns = ["full_path", "filename"].extend(self.class_names)
 
         # Количество изображений без детекции
         cnt_without_detection = 0
@@ -118,17 +125,7 @@ class DetectionWorker(QThread):
         statistic_size = full_statistic.shape[0]
 
         # Список файлов, являющихся изображениями или видеоматериалами
-        files = []
-        for folder, _, filenames in walk(source):
-            for filename in filenames:
-                filename_splitted = filename.split(".")
-                if len(filename_splitted) < 2:
-                    pass
-                elif (
-                    filename_splitted[-1].lower() in IMG_FORMATS
-                    or filename_splitted[-1].lower() in VID_FORMATS
-                ):
-                    files.append(f"{folder}/{filename}")
+        files = self.get_files(source, is_find_subdirectories)
 
         # Создание папки для сохранения материалов детекции
         if (
@@ -139,7 +136,7 @@ class DetectionWorker(QThread):
 
         # Создание папок для каждого класса животных
         if to_group_images == Qt.CheckState.Checked:
-            for class_name in self.model.names.values():
+            for class_name in self.class_names:
                 Path(f"{destination}/detection/{class_name}").mkdir(
                     parents=True, exist_ok=True
                 )
@@ -176,7 +173,7 @@ class DetectionWorker(QThread):
                     destination,
                     to_save_image,
                     to_group_images,
-                    classes,
+                    self.classes,
                     detected_objects,
                 )
 
@@ -197,7 +194,7 @@ class DetectionWorker(QThread):
                     animal_count[detected_object] += 1
                     full_statistic.loc[
                         statistic_size + current_number,
-                        self.model.names[detected_object],
+                        self.classes[detected_object],
                     ] = 1
             else:
                 cnt_without_detection += 1
@@ -208,7 +205,7 @@ class DetectionWorker(QThread):
             current_number += 1
 
         # Сохранение внутренней статистики
-        self.save_internal_statistic(animal_count, classes, cnt_without_detection)
+        self.save_internal_statistic(animal_count, self.classes, cnt_without_detection)
 
         # Сохранение внешней статистики
         if to_save_statistic == Qt.CheckState.Checked:
@@ -219,6 +216,42 @@ class DetectionWorker(QThread):
         self.btn_abort_upload_state.emit(False)
         self.inform_end.emit()
         self.is_working = False
+
+    def get_files(self, source: str, is_find_subdirectories: Qt.CheckState):
+        """
+        Функция получения файлов для детекции
+
+        Args:
+            source - источник
+            is_find_subdirectories - флаг поиска в подкаталогах
+
+        return:
+            files - лист файлов для детекции
+        """
+
+        files = []
+        if is_find_subdirectories == Qt.CheckState.Checked:
+            for folder, _, filenames in walk(source):
+                for filename in filenames:
+                    filename_splitted = filename.split(".")
+                    if len(filename_splitted) < 2:
+                        pass
+                    elif (
+                        filename_splitted[-1].lower() in IMG_FORMATS
+                        or filename_splitted[-1].lower() in VID_FORMATS
+                    ):
+                        files.append(f"{folder}/{filename}")
+        else:
+            for filename in listdir(source):
+                filename_splitted = filename.split(".")
+                if len(filename_splitted) < 2:
+                    pass
+                elif (
+                    filename_splitted[-1].lower() in IMG_FORMATS
+                    or filename_splitted[-1].lower() in VID_FORMATS
+                ):
+                    files.append(f"{source}/{filename}")
+        return files
 
     def process_video(
         self,
@@ -262,6 +295,7 @@ class DetectionWorker(QThread):
             for image in prediction:
                 # Досрочное завершение
                 if not self.is_working:
+                    video.release()
                     self.shut_down()
                     return
                 # Добавление обнаруженных объектов

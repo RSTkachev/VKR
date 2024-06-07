@@ -1,44 +1,36 @@
-/* Define styles for the 'title_label' widget */
 #title_label {
     font-size: 18px;
     font-family: Open Sans Semibold;
 }
 
-/* Define styles for the 'title_icon' widget */
 #title_icon {
     max-width: 24px;
     max-height: 24px;
     padding-left: 4px;
 }
 
-/* Define styles for the 'menu_btn' widget */
 #menu_btn {
     border: none;
     padding-right: 4px;
 }
 
-/* Define styles for the 'QStackedWidget' */
 QStackedWidget {
     background-color: #fff9e3;
 }
 
-/* Define styles for 'QListWidget' and '#title_frame' */
 QListWidget,
 #title_frame {
     background-color: #ffedab;
 }
 
-/* Additional border style for '#stackedWidget' */
 #stackedWidget {
     border: none;
 }
 
-/* Additional border style for '#title_frame' */
 #title_frame {
     border: none;
 }
 
-/* Define font styles for '#listWidget' */
 #listWidget,
 #listWidget_collapsed {
     font-size: 14px;
@@ -46,7 +38,6 @@ QListWidget,
     border: none;
 }
 
-/* Border radius for '#listWidget' and '#listWidget_collapsed' items */
 #listWidget::item,
 #listWidget_collapsed::item {
     padding-left: 12px;
@@ -54,14 +45,12 @@ QListWidget,
 }
 
 
-/* Hover effect for list items */
 #listWidget::item:hover,
 #listWidget_collapsed::item:hover {
     widget-animation-duration: 2000;
     border: none;
 }
 
-/* Selected item styles for list items */
 #listWidget::item:selected,
 #listWidget_collapsed::item:selected {
     background-color:rgb(255, 249, 227);
@@ -80,7 +69,7 @@ QListWidget,
 
 #progress_bar {
     background-color:rgb(225, 225, 225);
-    border-radius: 10px;
+    border-radius: 12px;
     text-align: center;
     color: black;
     height:24px;
@@ -112,8 +101,10 @@ QListWidget,
 #device_text,
 #loading_text,
 #saving_text,
+#find_subdirectories,
 #confidence_threshold,
-#save_image_text,
+#save_images_text,
+#draw_bbox_text,
 #save_statistic_text,
 #group_images_text {
     font-size: 13px;

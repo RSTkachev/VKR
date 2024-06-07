@@ -1,0 +1,14 @@
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch
+torchvision
+torchaudio
+filetype>=1.2.0
+matplotlib>=3.8.4
+opencv_python>=4.9.0.80
+pandas>=2.2.2
+PySide6>=6.7.0
+PySide6_Addons>=6.7.0
+PySide6_Essentials>=6.7.0
+seaborn>=0.13.2
+ultralytics>=8.2.10
+dill>=0.3.8
