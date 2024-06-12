@@ -1,4 +1,4 @@
-from os import walk, listdir
+from os import walk, listdir, remove
 from os.path import exists
 from pathlib import Path
 from shutil import copy2
@@ -18,7 +18,7 @@ class DetectionWorker(QThread):
     """Класс детектора"""
 
     # Модель детектора
-    model = None
+    __model = None
 
     # Сигналы для изменения интерфейса
     set_enable_state = Signal()
@@ -30,9 +30,9 @@ class DetectionWorker(QThread):
     is_working = False
 
     # Индексы и названия классов детекции
-    classes = None
-    class_indexes = None
-    class_names = None
+    __classes = None
+    __class_indexes = None
+    __class_names = None
 
     @Slot(str)
     def load_model(self, model_name: str) -> None:
@@ -42,13 +42,13 @@ class DetectionWorker(QThread):
         Args:
             model_name - название файла модели
         """
-        if not self.model:
-            self.model = YOLO(model_name, verbose=False)
+        if not self.__model:
+            self.__model = YOLO(model_name, verbose=False)
 
         # Индексы и названия классов детекции
-        self.classes = self.model.names
-        self.class_indexes = self.model.names.keys()
-        self.class_names = self.model.names.values()
+        self.__classes = self.__model.names
+        self.__class_indexes = self.__model.names.keys()
+        self.__class_names = self.__model.names.values()
 
     @Slot(str)
     def set_device(self, device: str):
@@ -69,7 +69,7 @@ class DetectionWorker(QThread):
             devices[get_device_name(device_index)] = device_index
 
         # Перенос модели на устройство выполнения детекции
-        self.model.to(devices[device])
+        self.__model.to(devices[device])
         # Очистка памяти, занимаемой моделью
         empty_cache()
 
@@ -106,10 +106,10 @@ class DetectionWorker(QThread):
         self.btn_abort_upload_state.emit(False)
 
         # Количество животных на детекциях
-        animal_count = {x: 0 for x in self.class_indexes}
+        animal_count = {x: 0 for x in self.__class_indexes}
 
         # Названия колонок статистики
-        columns = ["full_path", "filename"].extend(self.class_names)
+        columns = ["full_path", "filename"].extend(self.__class_names)
 
         # Количество изображений без детекции
         cnt_without_detection = 0
@@ -125,7 +125,7 @@ class DetectionWorker(QThread):
         statistic_size = full_statistic.shape[0]
 
         # Список файлов, являющихся изображениями или видеоматериалами
-        files = self.get_files(source, is_find_subdirectories)
+        files = self.__get_files(source, is_find_subdirectories)
 
         # Создание папки для сохранения материалов детекции
         if (
@@ -136,7 +136,7 @@ class DetectionWorker(QThread):
 
         # Создание папок для каждого класса животных
         if to_group_images == Qt.CheckState.Checked:
-            for class_name in self.class_names:
+            for class_name in self.__class_names:
                 Path(f"{destination}/detection/{class_name}").mkdir(
                     parents=True, exist_ok=True
                 )
@@ -158,7 +158,7 @@ class DetectionWorker(QThread):
                 return
 
             # Запуск детекции
-            prediction = self.model.predict(
+            prediction = self.__model.predict(
                 file, verbose=False, stream=True, conf=confidence
             )
 
@@ -167,19 +167,19 @@ class DetectionWorker(QThread):
 
             # Детекция изображения
             if file.split(".")[-1] in IMG_FORMATS:
-                self.process_image(
+                self.__process_image(
                     prediction.__next__(),
                     file,
                     destination,
                     to_save_image,
                     to_group_images,
-                    self.classes,
+                    self.__classes,
                     detected_objects,
                 )
 
             # Детекция видео
             else:
-                self.process_video(
+                self.__process_video(
                     prediction,
                     file,
                     destination,
@@ -194,7 +194,7 @@ class DetectionWorker(QThread):
                     animal_count[detected_object] += 1
                     full_statistic.loc[
                         statistic_size + current_number,
-                        self.classes[detected_object],
+                        self.__classes[detected_object],
                     ] = 1
             else:
                 cnt_without_detection += 1
@@ -205,7 +205,9 @@ class DetectionWorker(QThread):
             current_number += 1
 
         # Сохранение внутренней статистики
-        self.save_internal_statistic(animal_count, self.classes, cnt_without_detection)
+        self.__save_internal_statistic(
+            animal_count, self.__classes, cnt_without_detection
+        )
 
         # Сохранение внешней статистики
         if to_save_statistic == Qt.CheckState.Checked:
@@ -217,7 +219,7 @@ class DetectionWorker(QThread):
         self.inform_end.emit()
         self.is_working = False
 
-    def get_files(self, source: str, is_find_subdirectories: Qt.CheckState):
+    def __get_files(self, source: str, is_find_subdirectories: Qt.CheckState):
         """
         Функция получения файлов для детекции
 
@@ -253,7 +255,7 @@ class DetectionWorker(QThread):
                     files.append(f"{source}/{filename}")
         return files
 
-    def process_video(
+    def __process_video(
         self,
         prediction: Iterator,
         file: str,
@@ -296,6 +298,10 @@ class DetectionWorker(QThread):
                 # Досрочное завершение
                 if not self.is_working:
                     video.release()
+                    if len(detected_objects) == 0:
+                        remove(
+                            f"{destination}/detection/{'.'.join(file.split('/')[-1].split('.')[:-1])}.avi"
+                        )
                     self.shut_down()
                     return
                 # Добавление обнаруженных объектов
@@ -305,6 +311,11 @@ class DetectionWorker(QThread):
 
             # Сохранение видео
             video.release()
+
+            if len(detected_objects) == 0:
+                remove(
+                    f"{destination}/detection/{'.'.join(file.split('/')[-1].split('.')[:-1])}.avi"
+                )
 
         else:
             # Детекция кадра видео
@@ -316,10 +327,10 @@ class DetectionWorker(QThread):
                     self.shut_down()
                     return
             # Копирование исходного видео
-            if to_group_images == Qt.CheckState.Checked:
+            if to_group_images == Qt.CheckState.Checked and len(detected_objects) > 0:
                 copy2(file, f"{destination}/detection/{file.split('/')[-1]}")
 
-    def process_image(
+    def __process_image(
         self,
         image: Results,
         file: str,
@@ -363,7 +374,7 @@ class DetectionWorker(QThread):
         elif to_save_image == Qt.CheckState.Checked:
             image.save(f'{destination}/detection/{file.split("/")[-1]}')
 
-    def save_internal_statistic(
+    def __save_internal_statistic(
         self, counts: dict, names: list, without_detection: int
     ) -> None:
         """

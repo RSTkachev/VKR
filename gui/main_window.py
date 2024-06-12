@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon, QCloseEvent, QPixmap
 from PySide6.QtWidgets import QListWidgetItem, QMessageBox
 
+import resources.strings
 from gui.detection_window import DetectionWidget
 from gui.info_window import InfoWidget
 from gui.main_window_ui import UiMainWindow
@@ -16,8 +17,8 @@ class MainWindow(UiMainWindow):
 
         # Инициализация контейнера для UI
 
-        self._title_icon.setPixmap(QPixmap("./resources/icons/deer.svg"))
-        self._title_label.setText("WLD")
+        self._title_icon.setPixmap(QPixmap(resources.strings.label_path))
+        self._title_label.setText(resources.strings.app_name_short)
         self._menu_btn.setIcon(QIcon("./resources/icons/menu.svg"))
 
         self._title_label.hide()
@@ -32,7 +33,7 @@ class MainWindow(UiMainWindow):
         self._menu_btn.setChecked(True)
 
         # Страницы приложения
-        self._menu_list = [
+        self.__menu_list = [
             {
                 "name": "Главная страница",
                 "icon": "./resources/icons/camera.svg",
@@ -84,7 +85,7 @@ class MainWindow(UiMainWindow):
     def __init_side_menu(self) -> None:
         """Создание элементов бокового меню"""
 
-        for menu in self._menu_list:
+        for menu in self.__menu_list:
             item = QListWidgetItem()
             item.setIcon(QIcon(menu.get("icon")))
             item.setSizeHint(QSize(40, 40))
@@ -103,14 +104,14 @@ class MainWindow(UiMainWindow):
     def __init_main_content(self) -> None:
         """Создание страниц"""
 
-        for menu in self._menu_list:
+        for menu in self.__menu_list:
             self._main_content.addWidget(menu.get("widget"))
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Закрытие приложения"""
 
         # Если активна детекция
-        if self._menu_list[0]["widget"].check_worker_state():
+        if self.__menu_list[0]["widget"].check_worker_state():
             # Сообщение о работающей детекции
             button = QMessageBox.question(
                 self,
@@ -120,8 +121,8 @@ class MainWindow(UiMainWindow):
 
             # Завершение работы потока и закрытие приложения
             if button == QMessageBox.StandardButton.Yes:
-                self._menu_list[0]["widget"].stop_worker()
-                self._menu_list[0]["widget"].close_worker()
+                self.__menu_list[0]["widget"].stop_worker()
+                self.__menu_list[0]["widget"].close_worker()
                 event.accept()
             # Не закрывать приложение
             else:
@@ -129,5 +130,5 @@ class MainWindow(UiMainWindow):
 
         # Завершение работы потока и закрытие приложения
         else:
-            self._menu_list[0]["widget"].close_worker()
+            self.__menu_list[0]["widget"].close_worker()
             event.accept()

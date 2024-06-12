@@ -31,28 +31,28 @@ QListWidget,
     border: none;
 }
 
-#listWidget,
-#listWidget_collapsed {
+#listWidget_collapsed,
+#listWidget {
     font-size: 14px;
     font-family: Open Sans;
     border: none;
 }
 
-#listWidget::item,
-#listWidget_collapsed::item {
+#listWidget_collapsed::item,
+#listWidget::item {
     padding-left: 12px;
     border-right: none;
 }
 
 
-#listWidget::item:hover,
-#listWidget_collapsed::item:hover {
+#listWidget_collapsed::item:hover,
+#listWidget::item:hover {
     widget-animation-duration: 2000;
     border: none;
 }
 
-#listWidget::item:selected,
-#listWidget_collapsed::item:selected {
+#listWidget_collapsed::item:selected,
+#listWidget::item:selected {
     background-color:rgb(255, 249, 227);
     border-top-left-radius: 20px;
     border-bottom-left-radius: 20px;

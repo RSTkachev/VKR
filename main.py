@@ -4,6 +4,7 @@ from PySide6.QtCore import QSize
 from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtWidgets import QApplication, QSplashScreen
 
+import resources.strings
 from gui.main_window import MainWindow
 
 if __name__ == "__main__":
@@ -12,7 +13,7 @@ if __name__ == "__main__":
     app = QApplication([])
 
     # Установка и показ splash screen
-    splash = QSplashScreen(QPixmap("./resources/icons/deer.svg"))
+    splash = QSplashScreen(QPixmap(resources.strings.label_path))
     splash.show()
 
     # Установка стиля элементов
@@ -27,9 +28,9 @@ if __name__ == "__main__":
     window = MainWindow()
 
     # Установка параметров
-    window.setWindowIcon(QIcon("./resources/icons/deer.svg"))
-    window.setWindowTitle("Wild Life Detection")
-    window.setMinimumSize(QSize(1280, 760))
+    window.setWindowIcon(QIcon(resources.strings.label_path))
+    window.setWindowTitle(resources.strings.app_name)
+    window.setMinimumSize(QSize(1400, 760))
 
     # Открытие приложения и завершение показа splash screen
     window.show()
