@@ -1,8 +1,6 @@
-from os import remove
-from os.path import exists
-
-import pandas as pd
+from PySide6.QtCore import Signal, Slot, QThread
 from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import QMessageBox
 
 from gui.statistic_window_ui import StatisticWindowUi
 from processing.plot_creator import PlotCreator
@@ -12,9 +10,11 @@ class StatisticWidget(StatisticWindowUi):
     """Страница статистики"""
 
     # Переменные для хранения данных для реализации графов
-    __statistic_file = None
-    __cnt_detections = 0
-    __current_detection = 0
+
+    __thread_load_statistic = Signal()
+    __thread_previous_chart = Signal()
+    __thread_next_chart = Signal()
+    __thread_clear_statistic = Signal()
 
     def __init__(self) -> None:
         """Инициализация объекта"""
@@ -26,93 +26,105 @@ class StatisticWidget(StatisticWindowUi):
         self._button_next.clicked.connect(self.__load_next_chart)
         self._button_clear.clicked.connect(self.__clear_statistic)
 
-        # Попытка открытия файла со статистикой
-        if exists("./resources/statistic.csv"):
-            self.__statistic_file = pd.read_csv("./resources/statistic.csv")
-            # Количество выполненных детекций
-            self.__cnt_detections = self.__statistic_file.shape[0]
+        self.__plotter = PlotCreator()
+        self.__worker_thread = QThread()
 
-        # Если файл со статистикой существует и непустой
-        if self.__cnt_detections > 0:
-            # Обновление графического интерфейса
-            self._chart_text.setVisible(False)
-            self._chart.setVisible(True)
-            self._button_clear.setVisible(True)
-            # Установка графа
-            self.__set_plot()
-            # Обновление графического интерфейса
-            if self.__cnt_detections > 1:
-                self._button_next.setVisible(True)
+        self.__thread_load_statistic.connect(self.__plotter.load_statistic)
+        self.__thread_previous_chart.connect(self.__plotter.previous_chart)
+        self.__thread_next_chart.connect(self.__plotter.next_chart)
+        self.__thread_clear_statistic.connect(self.__plotter.clear_statistic)
+
+        self.__plotter.graph_existed.connect(self.__graph_existed)
+        self.__plotter.no_graph.connect(self.__no_graph)
+        self.__plotter.previous.connect(self.__set_previous_button_state)
+        self.__plotter.next.connect(self.__set_next_button_state)
+        self.__plotter.plot.connect(self.__set_plot)
+        self.__plotter.clear_error.connect(self.__inform_error_deleting)
+
+        self.__worker_thread.start()
+
+        self.__plotter.load_statistic()
 
     def __load_previous_chart(self) -> None:
         """Переход к предыдущему графу"""
 
-        # Уменьшение номера детекции
-        self.__current_detection -= 1
-        # Обновление графического интерфейса
-        if self.__current_detection == 0:
-            self._button_previous.setVisible(False)
-        if self.__current_detection < self.__cnt_detections - 1:
-            self._button_next.setVisible(True)
-        # Установка графа
-        self.__set_plot()
+        self.__thread_previous_chart.emit()
 
     def __load_next_chart(self) -> None:
         """Переход к следующему графу"""
 
-        # Увеличение номера детекции
-        self.__current_detection += 1
-        # Обновление графического интерфейса
-        if self.__current_detection == self.__cnt_detections - 1:
-            self._button_next.setVisible(False)
-        if self.__current_detection > 0:
-            self._button_previous.setVisible(True)
-        # Установка графа
-        self.__set_plot()
+        self.__thread_next_chart.emit()
 
     def __refresh_detections(self) -> None:
         """Обновление статистики из файла"""
 
-        # Попытка чтения файла
-        if exists("./resources/statistic.csv"):
-            self.__statistic_file = pd.read_csv("./resources/statistic.csv")
-            # Новое количество выполненных детекций
-            self.__cnt_detections = self.__statistic_file.shape[0]
-
-            # Обновление графического интерфейса
-            if self.__current_detection < self.__cnt_detections - 1:
-                self._button_next.setVisible(True)
-
-            # Если имеются данные статистики
-            if self.__cnt_detections:
-                self._chart_text.setVisible(False)
-                self._chart.setVisible(True)
-                self._button_clear.setVisible(True)
-                # Установка графа
-                self.__set_plot()
+        self.__thread_load_statistic.emit()
 
     def __clear_statistic(self) -> None:
         """Удаление файла статистики"""
 
-        # Удаление файла
-        if exists("./resources/statistic.csv"):
-            remove("./resources/statistic.csv")
-        # Обновление графического интерфейса
-        self._button_previous.setVisible(False)
-        self._button_next.setVisible(False)
+        self.__thread_clear_statistic.emit()
+
+    @Slot(QPixmap)
+    def __set_plot(self, pixmap: QPixmap) -> None:
+        """Установка графа"""
+
+        self._chart.setPixmap(pixmap)
+
+    @Slot()
+    def __graph_existed(self) -> None:
+        """Обновление интерфейса. График присутствует"""
+
+        self._chart_text.setVisible(False)
+        self._button_clear.setVisible(True)
+        self._chart.setVisible(True)
+
+    @Slot()
+    def __no_graph(self) -> None:
+        """Обновление интерфейса. График отсутствует"""
+
         self._chart.setVisible(False)
         self._chart_text.setVisible(True)
         self._button_clear.setVisible(False)
-        # Обнуление данных по детекциям
-        self.__current_detection = 0
-        self.__cnt_detections = 0
+        self._button_previous.setVisible(False)
+        self._button_next.setVisible(False)
 
-    def __set_plot(self) -> None:
-        """Установка графа"""
+    @Slot(bool)
+    def __set_previous_button_state(self, visibility: bool) -> None:
+        """
+        Обновление видимости кнопки перехода к предыдущему графу
 
-        # Строка для построения графа
-        row = self.__statistic_file.iloc[self.__current_detection]
-        # Построение графа
-        PlotCreator.plot_chart(row)
-        # Установка графа
-        self._chart.setPixmap(QPixmap("./resources/plot.jpg"))
+        Args:
+            visibility - видимость кнопки
+        """
+
+        self._button_previous.setVisible(visibility)
+
+    @Slot(bool)
+    def __set_next_button_state(self, visibility: bool) -> None:
+        """
+        Обновление видимости кнопки перехода к следующему графу
+
+        Args:
+            visibility - видимость кнопки
+        """
+
+        self._button_next.setVisible(visibility)
+
+    @Slot()
+    def __inform_error_deleting(self) -> None:
+        """Информирование пользователя об ошибки сброса статистики"""
+
+        dialog = QMessageBox(self)
+        dialog.warning(
+            self,
+            "Статистика используется",
+            "Сброс статистики невозможен,так как файл статистики используется",
+            QMessageBox.StandardButton.Ok,
+        )
+
+    def close_worker(self) -> None:
+        """Закрытие потока"""
+
+        self.__worker_thread.quit()
+        self.__worker_thread.wait()

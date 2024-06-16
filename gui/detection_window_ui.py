@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 class DetectionWidgetUi(QWidget):
     """Интерфейс страницы детекции"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Инициализация объекта"""
 
         super().__init__()

@@ -6,7 +6,7 @@ from typing import Iterator
 
 import cv2
 import pandas as pd
-from PySide6.QtCore import QThread, Signal, Slot
+from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtGui import Qt
 from torch.cuda import device_count, get_device_name, empty_cache
 from ultralytics import YOLO
@@ -14,7 +14,7 @@ from ultralytics.data.utils import IMG_FORMATS, VID_FORMATS
 from ultralytics.engine.results import Results
 
 
-class DetectionWorker(QThread):
+class DetectionWorker(QObject):
     """Класс детектора"""
 
     # Модель детектора
@@ -42,6 +42,7 @@ class DetectionWorker(QThread):
         Args:
             model_name - название файла модели
         """
+
         if not self.__model:
             self.__model = YOLO(model_name, verbose=False)
 
@@ -51,7 +52,7 @@ class DetectionWorker(QThread):
         self.__class_names = self.__model.names.values()
 
     @Slot(str)
-    def set_device(self, device: str):
+    def set_device(self, device: str) -> None:
         """
         Установка девайса обработки
 
@@ -211,7 +212,12 @@ class DetectionWorker(QThread):
 
         # Сохранение внешней статистики
         if to_save_statistic == Qt.CheckState.Checked:
-            full_statistic.to_csv(f"{destination}/detection/statistic.csv", index=False)
+            try:
+                full_statistic.to_csv(
+                    f"{destination}/detection/statistic.csv", index=False
+                )
+            except PermissionError:
+                pass
 
         # Обновление графического интерфейса, завершение работы
         self.set_enable_state.emit()
@@ -219,7 +225,7 @@ class DetectionWorker(QThread):
         self.inform_end.emit()
         self.is_working = False
 
-    def __get_files(self, source: str, is_find_subdirectories: Qt.CheckState):
+    def __get_files(self, source: str, is_find_subdirectories: Qt.CheckState) -> list:
         """
         Функция получения файлов для детекции
 
@@ -299,9 +305,13 @@ class DetectionWorker(QThread):
                 if not self.is_working:
                     video.release()
                     if len(detected_objects) == 0:
-                        remove(
-                            f"{destination}/detection/{'.'.join(file.split('/')[-1].split('.')[:-1])}.avi"
-                        )
+                        try:
+                            remove(
+                                f"{destination}/detection/{'.'.join(file.split('/')[-1].split('.')[:-1])}.avi"
+                            )
+                        except PermissionError:
+                            pass
+
                     self.shut_down()
                     return
                 # Добавление обнаруженных объектов
@@ -311,11 +321,15 @@ class DetectionWorker(QThread):
 
             # Сохранение видео
             video.release()
+            detected_objects.clear()
 
             if len(detected_objects) == 0:
-                remove(
-                    f"{destination}/detection/{'.'.join(file.split('/')[-1].split('.')[:-1])}.avi"
-                )
+                try:
+                    remove(
+                        f"{destination}/detection/{'.'.join(file.split('/')[-1].split('.')[:-1])}.avi"
+                    )
+                except PermissionError:
+                    pass
 
         else:
             # Детекция кадра видео
@@ -328,7 +342,10 @@ class DetectionWorker(QThread):
                     return
             # Копирование исходного видео
             if to_group_images == Qt.CheckState.Checked and len(detected_objects) > 0:
-                copy2(file, f"{destination}/detection/{file.split('/')[-1]}")
+                try:
+                    copy2(file, f"{destination}/detection/{file.split('/')[-1]}")
+                except PermissionError:
+                    pass
 
     def __process_image(
         self,
@@ -361,18 +378,29 @@ class DetectionWorker(QThread):
             # Сохранение результата
             if to_save_image == Qt.CheckState.Checked:
                 for index_class in detected_objects:
-                    image.save(
-                        f'{destination}/detection/{all_classes[index_class]}/{file.split("/")[-1]}'
-                    )
+                    try:
+                        image.save(
+                            f'{destination}/detection/{all_classes[index_class]}/{file.split("/")[-1]}'
+                        )
+                    except PermissionError:
+                        pass
 
             # Сохранение исходного изображения
             else:
                 for index_class in detected_objects:
-                    copy2(file, f"{destination}/detection/{all_classes[index_class]}")
+                    try:
+                        copy2(
+                            file, f"{destination}/detection/{all_classes[index_class]}"
+                        )
+                    except PermissionError:
+                        pass
 
         # Сохранение результата без группировки
         elif to_save_image == Qt.CheckState.Checked:
-            image.save(f'{destination}/detection/{file.split("/")[-1]}')
+            try:
+                image.save(f'{destination}/detection/{file.split("/")[-1]}')
+            except PermissionError:
+                pass
 
     def __save_internal_statistic(
         self, counts: dict, names: list, without_detection: int
@@ -402,9 +430,13 @@ class DetectionWorker(QThread):
         # Заполнение пропусков нулями
         statistic.fillna(0, inplace=True)
         # Сохранение статистики в файл
-        statistic.to_csv("./resources/statistic.csv", index=False)
+        try:
+            statistic.to_csv("./resources/statistic.csv", index=False)
+        except PermissionError:
+            pass
 
-    def shut_down(self):
+    def shut_down(self) -> None:
         """Обновление графического интерфеса по завершении работы"""
+
         self.set_enable_state.emit()
         self.btn_abort_upload_state.emit(True)

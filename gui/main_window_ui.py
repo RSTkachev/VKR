@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 class UiMainWindow(QMainWindow):
     """Интерфейс окна"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Инициализация объекта"""
 
         super().__init__()

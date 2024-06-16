@@ -123,6 +123,7 @@ class MainWindow(UiMainWindow):
             if button == QMessageBox.StandardButton.Yes:
                 self.__menu_list[0]["widget"].stop_worker()
                 self.__menu_list[0]["widget"].close_worker()
+                self.__menu_list[1]["widget"].close_worker()
                 event.accept()
             # Не закрывать приложение
             else:
@@ -131,4 +132,5 @@ class MainWindow(UiMainWindow):
         # Завершение работы потока и закрытие приложения
         else:
             self.__menu_list[0]["widget"].close_worker()
+            self.__menu_list[1]["widget"].close_worker()
             event.accept()

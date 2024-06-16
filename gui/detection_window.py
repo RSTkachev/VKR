@@ -22,7 +22,7 @@ class DetectionWidget(DetectionWidgetUi):
         str, Qt.CheckState, str, float, Qt.CheckState, Qt.CheckState, Qt.CheckState
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Инициализация объекта"""
 
         super().__init__()
@@ -73,7 +73,7 @@ class DetectionWidget(DetectionWidgetUi):
         directory = QFileDialog.getExistingDirectory()
         self._line_edit_loading_path.setText(directory)
 
-    def __checkbox_saving_images_state(self):
+    def __checkbox_saving_images_state(self) -> None:
         """Проверка состояния чекбокса сохранения материалов"""
 
         if self._checkbox_save_images.checkState() == Qt.CheckState.Checked:
@@ -94,7 +94,7 @@ class DetectionWidget(DetectionWidgetUi):
                 self._line_edit_saving_path.setEnabled(False)
                 self._btn_saving_directory.setEnabled(False)
 
-    def __checkbox_check_state(self):
+    def __checkbox_check_state(self) -> None:
         """Проверка состояния чекбоксов"""
 
         if (
@@ -103,7 +103,7 @@ class DetectionWidget(DetectionWidgetUi):
         ):
             self._checkbox_save_images.setCheckState(Qt.CheckState.Unchecked)
 
-    def __checkbox_save_statistic_state(self):
+    def __checkbox_save_statistic_state(self) -> None:
         """Проверка состояния чекбокса сохранения статистики"""
 
         if self._checkbox_save_statistic.checkState() == Qt.CheckState.Checked:
@@ -113,13 +113,13 @@ class DetectionWidget(DetectionWidgetUi):
             self._line_edit_saving_path.setEnabled(False)
             self._btn_saving_directory.setEnabled(False)
 
-    def __chose_save_directory(self):
+    def __chose_save_directory(self) -> None:
         """Установка директории-назначения"""
 
         directory = QFileDialog.getExistingDirectory()
         self._line_edit_saving_path.setText(directory)
 
-    def __process(self):
+    def __process(self) -> None:
         """Запуск обработки"""
 
         device = self._device_list.currentText()
@@ -182,7 +182,7 @@ class DetectionWidget(DetectionWidgetUi):
             group_images,
         )
 
-    def check_worker_state(self):
+    def check_worker_state(self) -> None:
         """
         Проверка состояния потока
 
@@ -192,7 +192,7 @@ class DetectionWidget(DetectionWidgetUi):
 
         return self.__worker.is_working
 
-    def stop_worker(self):
+    def stop_worker(self) -> None:
         """Остановка потока"""
 
         self.__worker.is_working = False
@@ -238,6 +238,7 @@ class DetectionWidget(DetectionWidgetUi):
         Args:
             progress - прогресс выполнения
         """
+
         self._progress_bar.setValue(progress)
 
     @Slot()

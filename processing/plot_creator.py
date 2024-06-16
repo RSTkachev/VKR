@@ -1,16 +1,105 @@
+from os import remove
+from os.path import exists
+
 import matplotlib.pyplot as plt
+import pandas as pd
+from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtGui import QPixmap
 from seaborn import barplot, color_palette
 
 
-class PlotCreator:
+class PlotCreator(QObject):
+    """Класс для построения графиков"""
 
-    @staticmethod
-    def add_labels(row):
-        """
-        Добавление количества изображений с обнаруженным классом на граф
-        Args:
-            row - строка с данными
-        """
+    # Файл статистики
+    __statistic = None
+    __current_row = 0
+    __total_row = 0
+
+    no_graph = Signal()
+    graph_existed = Signal()
+    previous = Signal(bool)
+    next = Signal(bool)
+    plot = Signal(QPixmap)
+    clear_error = Signal()
+
+    @Slot()
+    def load_statistic(self) -> bool:
+        """Загрузка статистики и установка графа"""
+
+        if exists("./resources/statistic.csv"):
+            self.__statistic = pd.read_csv("./resources/statistic.csv")
+            # Количество выполненных детекций
+            self.__total_row = self.__statistic.shape[0]
+
+        else:
+            self.__current_row = 0
+            self.__total_row = 0
+
+        if self.__total_row:
+            self.__plot_chart()
+            self.graph_existed.emit()
+            self.__check_previous()
+            self.__check_next()
+            return True
+
+        else:
+            self.no_graph.emit()
+            return False
+
+    @Slot()
+    def clear_statistic(self) -> None:
+        """Удаление статистики"""
+
+        if exists("./resources/statistic.csv"):
+            try:
+                remove("./resources/statistic.csv")
+            except PermissionError:
+                self.clear_error.emit()
+                return
+
+        self.__current_row = 0
+        self.__total_row = 0
+        self.no_graph.emit()
+
+    @Slot()
+    def previous_chart(self) -> None:
+        """Переход к предыдущему графу"""
+
+        self.__current_row -= 1
+        self.__check_previous()
+        self.__check_next()
+        self.__plot_chart()
+
+    @Slot()
+    def next_chart(self) -> None:
+        """Переход к следующему графу"""
+
+        self.__current_row += 1
+        self.__check_previous()
+        self.__check_next()
+        self.__plot_chart()
+
+    def __check_previous(self) -> None:
+        """Проверка наличия предыдущего графа и изменение кнопки перехода к предыдущму графу"""
+
+        if self.__current_row > 0:
+            self.previous.emit(True)
+        else:
+            self.previous.emit(False)
+
+    def __check_next(self) -> None:
+        """Проверка наличия следующего графа и изменение кнопки перехода к следующему графу"""
+
+        if self.__total_row > self.__current_row + 1:
+            self.next.emit(True)
+        else:
+            self.next.emit(False)
+
+    def __add_labels(self) -> None:
+        """Добавление количества изображений с обнаруженным классом на граф"""
+
+        row = self.__statistic.iloc[self.__current_row]
 
         for column in range(row.shape[0]):
             if row.iloc[column]:
@@ -22,15 +111,10 @@ class PlotCreator:
                     rotation=90,
                 )
 
-    @staticmethod
-    def plot_chart(row, path="./resources/plot.jpg"):
-        """
-        Создание графа
+    def __plot_chart(self) -> None:
+        """Создание графа"""
 
-        Args:
-            row - строка с данными
-            path - путь сохранения
-        """
+        row = self.__statistic.iloc[self.__current_row]
 
         # Создание графа
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -50,8 +134,9 @@ class PlotCreator:
         plt.title("Количество обнаруженных животных")
 
         # Добавление количества изображений с обнаруженным классом на граф
-        PlotCreator.add_labels(row)
+        self.__add_labels()
         # Сохранение графа
-        plt.savefig(path, bbox_inches="tight")
+        plt.savefig("./resources/plot.jpg", bbox_inches="tight")
         # Закрытие графа для экономии памяти
         plt.close(fig)
+        self.plot.emit(QPixmap("./resources/plot.jpg"))
